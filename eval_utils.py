@@ -57,7 +57,7 @@ def language_eval(dataset, preds, model_id, split):
     return out
 
 def eval_split(model, crit, loader, eval_kwargs={}):
-    verbose = eval_kwargs.get('verbose', True)
+    verbose = eval_kwargs.get('verbose', False)
     num_images = eval_kwargs.get('num_images', eval_kwargs.get('val_images_use', -1))
     split = eval_kwargs.get('split', 'val')
     lang_eval = eval_kwargs.get('language_eval', 0)
@@ -122,8 +122,7 @@ def eval_split(model, crit, loader, eval_kwargs={}):
         for i in range(n - ix1):
             predictions.pop()
 
-        if verbose:
-            print('evaluating validation preformance... %d/%d (%f)' %(ix0 - 1, ix1, loss))
+        print('evaluating validation preformance... %d/%d (%f)' %(ix0 - 1, ix1, loss))
 
         if data['bounds']['wrapped']:
             break
