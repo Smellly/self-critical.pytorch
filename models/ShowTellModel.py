@@ -25,7 +25,12 @@ class ShowTellModel(CaptionModel):
         self.ss_prob = 0.0 # Schedule sampling probability
 
         self.img_embed = nn.Linear(self.fc_feat_size, self.input_encoding_size)
-        self.core = getattr(nn, self.rnn_type.upper())(self.input_encoding_size, self.rnn_size, self.num_layers, bias=False, dropout=self.drop_prob_lm)
+        self.core = getattr(nn, self.rnn_type.upper())(
+                self.input_encoding_size, 
+                self.rnn_size, 
+                self.num_layers, 
+                bias=False, 
+                dropout=self.drop_prob_lm)
         self.embed = nn.Embedding(self.vocab_size + 1, self.input_encoding_size)
         self.logit = nn.Linear(self.rnn_size, self.vocab_size + 1)
         self.dropout = nn.Dropout(self.drop_prob_lm)

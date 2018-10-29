@@ -9,6 +9,9 @@ from torch.autograd import *
 import misc.utils as utils
 
 from .CaptionModel import CaptionModel
+import sys
+sys.path.append('pytorch_compact_bilinear_pooling')
+from compact_bilinear_pooling import CountSketch, CompactBilinearPooling
 
 class LSTMCore(nn.Module):
     def __init__(self, opt):
@@ -41,6 +44,38 @@ class LSTMCore(nn.Module):
         state = (next_h.unsqueeze(0), next_c.unsqueeze(0))
         return output, state
 
+class MCBLSTMCore(nn.Module):
+    def __init__(self, opt):
+        super(MCBLSTMCore, self).__init__()
+        print('using *MCB* LSTMCore')
+        self.input_encoding_size = opt.input_encoding_size
+        self.rnn_size = opt.rnn_size
+        self.drop_prob_lm = opt.drop_prob_lm
+        
+        # Build a LSTM
+        self.h2h = nn.Linear(self.rnn_size, 5 * self.rnn_size)
+        self.dropout = nn.Dropout(self.drop_prob_lm)
+        self.mcb = CompactBilinearPooling(opt.rnn_size, opt.input_encoding_size, opt.rnn_size).cuda()
+
+    def forward(self, xt, state):
+        prev_h = state[0][-1]
+        all_input_sums = self.h2h(self.mcb(xt, prev_h))
+        sigmoid_chunk = all_input_sums.narrow(1, 0, 3 * self.rnn_size)
+        sigmoid_chunk = F.sigmoid(sigmoid_chunk)
+        in_gate = sigmoid_chunk.narrow(1, 0, self.rnn_size)
+        forget_gate = sigmoid_chunk.narrow(1, self.rnn_size, self.rnn_size)
+        out_gate = sigmoid_chunk.narrow(1, self.rnn_size * 2, self.rnn_size)
+
+        in_transform = torch.max(\
+            all_input_sums.narrow(1, 3 * self.rnn_size, self.rnn_size),
+            all_input_sums.narrow(1, 4 * self.rnn_size, self.rnn_size))
+        next_c = forget_gate * state[1][-1] + in_gate * in_transform
+        next_h = out_gate * F.tanh(next_c)
+
+        output = self.dropout(next_h)
+        state = (next_h.unsqueeze(0), next_c.unsqueeze(0))
+        return output, state
+
 class FCModel(CaptionModel):
     def __init__(self, opt):
         super(FCModel, self).__init__()
@@ -56,7 +91,7 @@ class FCModel(CaptionModel):
         self.ss_prob = 0.0 # Schedule sampling probability
 
         self.img_embed = nn.Linear(self.fc_feat_size, self.input_encoding_size)
-        self.core = LSTMCore(opt)
+        self.core = MCBLSTMCore(opt)
         self.embed = nn.Embedding(self.vocab_size + 1, self.input_encoding_size)
         self.logit = nn.Linear(self.rnn_size, self.vocab_size + 1)
 
