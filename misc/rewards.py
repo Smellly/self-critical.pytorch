@@ -10,8 +10,9 @@ import torch
 from torch.autograd import Variable
 
 import sys
-sys.path.append("cider")
-from pyciderevalcap.ciderD.ciderD import CiderD
+sys.path.append("/media/disk0/jay/workspace/self-critical.pytorch/cider")
+sys.path.append("/media/disk0/jay/workspace/self-critical.pytorch/misc/cider/pyciderevalcap/ciderD")
+from ciderD import CiderD
 
 CiderD_scorer = None
 #CiderD_scorer = CiderD(df='corpus')
