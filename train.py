@@ -4,7 +4,6 @@ from __future__ import print_function
 
 import torch
 import torch.nn as nn
-from torch.autograd import Variable
 import torch.optim as optim
 
 import numpy as np
@@ -18,25 +17,28 @@ import models
 from dataloader import *
 import eval_utils
 import misc.utils as utils
-from misc.rewards import init_cider_scorer, get_self_critical_reward
+from misc.rewards import init_scorer, get_self_critical_reward
 
 try:
-    import tensorflow as tf
+    import tensorboardX as tb
 except ImportError:
-    print("Tensorflow not installed; No tensorboard logging.")
-    tf = None
+    print("tensorboardX is not installed")
+    tb = None
 
 def add_summary_value(writer, key, value, iteration):
-    summary = tf.Summary(value=[tf.Summary.Value(tag=key, simple_value=value)])
-    writer.add_summary(summary, iteration)
+    if writer:
+        writer.add_scalar(key, value, iteration)
 
 def train(opt):
+    # Deal with feature things before anything
     opt.use_att = utils.if_use_att(opt.caption_model)
+    if opt.use_box: opt.att_feat_size = opt.att_feat_size + 5
+
     loader = DataLoader(opt)
     opt.vocab_size = loader.vocab_size
     opt.seq_length = loader.seq_length
 
-    tf_summary_writer = tf and tf.summary.FileWriter(opt.checkpoint_path)
+    tb_summary_writer = tb and tb.SummaryWriter(opt.checkpoint_path)
     if not os.path.exists(opt.checkpoint_path):
         os.mkdir(opt.checkpoint_path)
 
@@ -69,19 +71,17 @@ def train(opt):
     if opt.load_best_score == 1:
         best_val_score = infos.get('best_val_score', None)
 
-    # choose model pyfile according to opt
-    model = models.setup(opt)
-    model.cuda()
+    model = models.setup(opt).cuda()
+    dp_model = torch.nn.DataParallel(model)
 
     update_lr_flag = True
     # Assure in training mode
-    model.train()
+    dp_model.train()
 
     crit = utils.LanguageModelCriterion()
     rl_crit = utils.RewardCriterion()
 
-    optimizer = optim.Adam(model.parameters(), lr=opt.learning_rate, weight_decay=opt.weight_decay)
-
+    optimizer = utils.build_optimizer(model.parameters(), opt)
     # Load the optimizer
     if vars(opt).get('start_from', None) is not None and os.path.isfile(os.path.join(opt.start_from,"optimizer.pth")):
         optimizer.load_state_dict(torch.load(os.path.join(opt.start_from, 'optimizer.pth')))
@@ -105,7 +105,7 @@ def train(opt):
             # If start self critical training
             if opt.self_critical_after != -1 and epoch >= opt.self_critical_after:
                 sc_flag = True
-                init_cider_scorer(opt.cached_tokens)
+                init_scorer(opt.cached_tokens)
             else:
                 sc_flag = False
 
@@ -119,22 +119,22 @@ def train(opt):
         torch.cuda.synchronize()
         start = time.time()
 
-        tmp = [data['fc_feats'], data['att_feats'], data['labels'], data['masks']]
-        tmp = [Variable(torch.from_numpy(_), requires_grad=False).cuda() for _ in tmp]
-        fc_feats, att_feats, labels, masks = tmp
+        tmp = [data['fc_feats'], data['att_feats'], data['labels'], data['masks'], data['att_masks']]
+        tmp = [_ if _ is None else torch.from_numpy(_).cuda() for _ in tmp]
+        fc_feats, att_feats, labels, masks, att_masks = tmp
         
         optimizer.zero_grad()
         if not sc_flag:
-            loss = crit(model(fc_feats, att_feats, labels), labels[:,1:], masks[:,1:])
+            loss = crit(dp_model(fc_feats, att_feats, labels, att_masks), labels[:,1:], masks[:,1:])
         else:
-            gen_result, sample_logprobs = model.sample(fc_feats, att_feats, {'sample_max':0})
-            reward = get_self_critical_reward(model, fc_feats, att_feats, data, gen_result)
-            loss = rl_crit(sample_logprobs, gen_result, Variable(torch.from_numpy(reward).float().cuda(), requires_grad=False))
+            gen_result, sample_logprobs = dp_model(fc_feats, att_feats, att_masks, opt={'sample_max':0}, mode='sample')
+            reward = get_self_critical_reward(dp_model, fc_feats, att_feats, att_masks, data, gen_result, opt)
+            loss = rl_crit(sample_logprobs, gen_result.data, torch.from_numpy(reward).float().cuda())
 
         loss.backward()
         utils.clip_gradient(optimizer, opt.grad_clip)
         optimizer.step()
-        train_loss = loss.data[0]
+        train_loss = loss.item()
         torch.cuda.synchronize()
         end = time.time()
         if int(iteration)%10 == 0:
@@ -153,13 +153,11 @@ def train(opt):
 
         # Write the training loss summary
         if (iteration % opt.losses_log_every == 0):
-            if tf is not None:
-                add_summary_value(tf_summary_writer, 'train_loss', train_loss, iteration)
-                add_summary_value(tf_summary_writer, 'learning_rate', opt.current_lr, iteration)
-                add_summary_value(tf_summary_writer, 'scheduled_sampling_prob', model.ss_prob, iteration)
-                if sc_flag:
-                    add_summary_value(tf_summary_writer, 'avg_reward', np.mean(reward[:,0]), iteration)
-                tf_summary_writer.flush()
+            add_summary_value(tb_summary_writer, 'train_loss', train_loss, iteration)
+            add_summary_value(tb_summary_writer, 'learning_rate', opt.current_lr, iteration)
+            add_summary_value(tb_summary_writer, 'scheduled_sampling_prob', model.ss_prob, iteration)
+            if sc_flag:
+                add_summary_value(tb_summary_writer, 'avg_reward', np.mean(reward[:,0]), iteration)
 
             loss_history[iteration] = train_loss if not sc_flag else np.mean(reward[:,0])
             lr_history[iteration] = opt.current_lr
@@ -171,15 +169,13 @@ def train(opt):
             eval_kwargs = {'split': 'val',
                             'dataset': opt.input_json}
             eval_kwargs.update(vars(opt))
-            val_loss, predictions, lang_stats = eval_utils.eval_split(model, crit, loader, eval_kwargs)
+            val_loss, predictions, lang_stats = eval_utils.eval_split(dp_model, crit, loader, eval_kwargs)
 
             # Write validation result into summary
-            if tf is not None:
-                add_summary_value(tf_summary_writer, 'validation loss', val_loss, iteration)
-                if lang_stats is not None:
-                    for k,v in lang_stats.items():
-                        add_summary_value(tf_summary_writer, k, v, iteration)
-                tf_summary_writer.flush()
+            add_summary_value(tb_summary_writer, 'validation loss', val_loss, iteration)
+            if lang_stats is not None:
+                for k,v in lang_stats.items():
+                    add_summary_value(tb_summary_writer, k, v, iteration)
             val_result_history[iteration] = {'loss': val_loss, 'lang_stats': lang_stats, 'predictions': predictions}
 
             # Save model if is improving on validation result

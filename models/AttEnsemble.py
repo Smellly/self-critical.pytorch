@@ -1,10 +1,17 @@
-# This file contains ShowAttendTell and AllImg model
+# This file contains Att2in2, AdaAtt, AdaAttMO, TopDown model
 
-# ShowAttendTell is from Show, Attend and Tell: Neural Image Caption Generation with Visual Attention
-# https://arxiv.org/abs/1502.03044
+# AdaAtt is from Knowing When to Look: Adaptive Attention via A Visual Sentinel for Image Captioning
+# https://arxiv.org/abs/1612.01887
+# AdaAttMO is a modified version with maxout lstm
 
-# AllImg is a model where
-# img feature is concatenated with word embedding at every time step as the input of lstm
+# Att2in is from Self-critical Sequence Training for Image Captioning
+# https://arxiv.org/abs/1612.00563
+# In this file we only have Att2in2, which is a slightly different version of att2in,
+# in which the img feature embedding and word embedding is the same as what in adaatt.
+
+# TopDown is from Bottom-Up and Top-Down Attention for Image Captioning and VQA
+# https://arxiv.org/abs/1707.07998
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -15,20 +22,76 @@ import torch.nn.functional as F
 from torch.autograd import *
 import misc.utils as utils
 
+from .CaptionModel import CaptionModel
+from .AttModel import pack_wrapper, AttModel
 
-class CaptionModel(nn.Module):
-    def __init__(self):
-        super(CaptionModel, self).__init__()
+class AttEnsemble(AttModel):
+    def __init__(self, models):
+        CaptionModel.__init__(self)
+        # super(AttEnsemble, self).__init__()
 
-    # implements beam search
-    # calls beam_step and returns the final set of beams
-    # augments log-probabilities with diversity terms when number of groups > 1
+        self.models = nn.ModuleList(models)
+        self.vocab_size = models[0].vocab_size
+        self.seq_length = models[0].seq_length
+        self.ss_prob = 0
 
-    def forward(self, *args, **kwargs):
-        mode = kwargs.get('mode', 'forward')
-        if 'mode' in kwargs:
-            del kwargs['mode']
-        return getattr(self, '_'+mode)(*args, **kwargs)
+    def init_hidden(self, batch_size):
+        return [m.init_hidden(batch_size) for m in self.models]
+
+    def embed(self, it):
+        return [m.embed(it) for m in self.models]
+
+    def core(self, *args):
+        return zip(*[m.core(*_) for m, _ in zip(self.models, zip(*args))])
+
+    def get_logprobs_state(self, it, tmp_fc_feats, tmp_att_feats, tmp_p_att_feats, tmp_att_masks, state):
+        # 'it' contains a word index
+        xt = self.embed(it)
+
+        output, state = self.core(xt, tmp_fc_feats, tmp_att_feats, tmp_p_att_feats, state, tmp_att_masks)
+        logprobs = torch.stack([F.softmax(m.logit(output[i]), dim=1) for i,m in enumerate(self.models)], 2).mean(2).log()
+
+        return logprobs, state
+
+    def _prepare_feature(self, fc_feats, att_feats, att_masks):
+        att_feats, att_masks = self.clip_att(att_feats, att_masks)
+
+        # embed fc and att feats
+        fc_feats = [m.fc_embed(fc_feats) for m in self.models]
+        att_feats = [pack_wrapper(m.att_embed, att_feats[...,:m.att_feat_size], att_masks) for m in self.models]
+
+        # Project the attention feats first to reduce memory and computation comsumptions.
+        p_att_feats = [m.ctx2att(att_feats[i]) for i,m in enumerate(self.models)]
+
+        return fc_feats, att_feats, p_att_feats, [att_masks] * len(self.models)
+
+    def _sample_beam(self, fc_feats, att_feats, att_masks=None, opt={}):
+        beam_size = opt.get('beam_size', 10)
+        batch_size = fc_feats.size(0)
+
+        fc_feats, att_feats, p_att_feats, att_masks = self._prepare_feature(fc_feats, att_feats, att_masks)
+
+        assert beam_size <= self.vocab_size + 1, 'lets assume this for now, otherwise this corner case causes a few headaches down the road. can be dealt with in future if needed'
+        seq = torch.LongTensor(self.seq_length, batch_size).zero_()
+        seqLogprobs = torch.FloatTensor(self.seq_length, batch_size)
+        # lets process every image independently for now, for simplicity
+
+        self.done_beams = [[] for _ in range(batch_size)]
+        for k in range(batch_size):
+            state = self.init_hidden(beam_size)
+            tmp_fc_feats = [fc_feats[i][k:k+1].expand(beam_size, fc_feats[i].size(1)) for i,m in enumerate(self.models)]
+            tmp_att_feats = [att_feats[i][k:k+1].expand(*((beam_size,)+att_feats[i].size()[1:])).contiguous() for i,m in enumerate(self.models)]
+            tmp_p_att_feats = [p_att_feats[i][k:k+1].expand(*((beam_size,)+p_att_feats[i].size()[1:])).contiguous() for i,m in enumerate(self.models)]
+            tmp_att_masks = [att_masks[k:k+1].expand(*((beam_size,)+att_masks.size()[1:])).contiguous() for i,m in enumerate(self.models)] if att_masks[0] is not None else att_masks
+
+            it = fc_feats[0].data.new(beam_size).long().zero_()
+            logprobs, state = self.get_logprobs_state(it, tmp_fc_feats, tmp_att_feats, tmp_p_att_feats, tmp_att_masks, state)
+
+            self.done_beams[k] = self.beam_search(state, logprobs, tmp_fc_feats, tmp_att_feats, tmp_p_att_feats, tmp_att_masks, opt=opt)
+            seq[:, k] = self.done_beams[k][0]['seq'] # the first beam has highest cumulative score
+            seqLogprobs[:, k] = self.done_beams[k][0]['logps']
+        # return the samples and their log likelihoods
+        return seq.transpose(0, 1), seqLogprobs.transpose(0, 1)
 
     def beam_search(self, init_state, init_logprobs, *args, **kwargs):
 
@@ -73,7 +136,7 @@ class CaptionModel(nn.Module):
                     candidates.append({'c':ix[q,c], 'q':q, 'p':candidate_logprob, 'r':local_unaug_logprob})
             candidates = sorted(candidates,  key=lambda x: -x['p'])
             
-            new_state = [_.clone() for _ in state]
+            new_state = [[_.clone() for _ in state_] for state_ in state]
             #beam_seq_prev, beam_seq_logprobs_prev
             if t >= 1:
             #we''ll need these as reference when we fork beams around
@@ -86,9 +149,10 @@ class CaptionModel(nn.Module):
                     beam_seq[:t, vix] = beam_seq_prev[:, v['q']]
                     beam_seq_logprobs[:t, vix] = beam_seq_logprobs_prev[:, v['q']]
                 #rearrange recurrent states
-                for state_ix in range(len(new_state)):
-                #  copy over state in previous beam q to new beam at vix
-                    new_state[state_ix][:, vix] = state[state_ix][:, v['q']] # dimension one is time step
+                for ii in range(len(new_state)):
+                    for state_ix in range(len(new_state[ii])):
+                    #  copy over state in previous beam q to new beam at vix
+                        new_state[ii][state_ix][:, vix] = state[ii][state_ix][:, v['q']] # dimension one is time step
                 #append new end terminal at the end of this beam
                 beam_seq[t, vix] = v['c'] # c'th word is the continuation
                 beam_seq_logprobs[t, vix] = v['r'] # the raw logprob here
@@ -112,14 +176,13 @@ class CaptionModel(nn.Module):
 
         # logprobs # logprobs predicted in last time step, shape (beam_size, vocab_size+1)
         done_beams_table = [[] for _ in range(group_size)]
-        state_table = [list(torch.unbind(_)) for _ in torch.stack(init_state).chunk(group_size, 2)]
+        state_table = zip(*[[list(torch.unbind(_)) for _ in torch.stack(init_state_).chunk(group_size, 2)] for init_state_ in init_state])
         logprobs_table = list(init_logprobs.chunk(group_size, 0))
         # END INIT
 
         # Chunk elements in the args
-        args = list(args)
-        args = [_.chunk(group_size) if _ is not None else [None]*group_size for _ in args]
-        args = [[args[i][j] for i in range(len(args))] for j in range(group_size)]
+        args = [[_.chunk(group_size) if _ is not None else [None]*group_size for _ in args_] for args_ in args] # arg_name, model_name, group_name
+        args = [[[args[j][i][k] for i in range(len(self.models))] for j in range(len(args))] for k in range(group_size)] # group_name, arg_name, model_name
 
         for t in range(self.seq_length + group_size - 1):
             for divm in range(group_size): 
