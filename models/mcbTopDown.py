@@ -24,7 +24,9 @@ import misc.utils as utils
 from torch.nn.utils.rnn import PackedSequence, pack_padded_sequence, pad_packed_sequence
 
 from .CaptionModel import CaptionModel
-from ../pytorch_compact_bilinear_pooling/compact_bilinear_pooling import CountSketch, CompactBilinearPooling
+import sys
+sys.path.append('pytorch_compact_bilinear_pooling')
+from compact_bilinear_pooling import CountSketch, CompactBilinearPooling
 
 
 
@@ -407,25 +409,31 @@ class AdaAttCore(nn.Module):
         atten_out = self.attention(h_out, p_out, att_feats, p_att_feats, att_masks)
         return atten_out, state
 
-class TopDownCore(nn.Module):
+class MCBTopDownCore(nn.Module):
     def __init__(self, opt, use_maxout=False):
-        super(TopDownCore, self).__init__()
+        super(MCBTopDownCore, self).__init__()
         self.drop_prob_lm = opt.drop_prob_lm
 
-        self.att_lstm = nn.LSTMCell(self.input_encoding_size + opt.rnn_size * 2, opt.rnn_size) # we, fc, h^2_t-1
+        self.att_lstm = nn.LSTMCell(opt.input_encoding_size + opt.rnn_size * 2, opt.rnn_size) # we, fc, h^2_t-1
         self.lang_lstm = nn.LSTMCell(opt.rnn_size * 2, opt.rnn_size) # h^1_t, \hat v
         self.attention = Attention(opt)
-        self.mcb = CompactBilinearPooling(self.fc_feat_size, self.input_encoding_size, self.input_encoding_size+self.fc_feat_size).cuda()
+        # print('rnn_size:', opt.rnn_size) # 512
+        # print('fc_feats:', opt.fc_feat_size) # 2048
+        # print('input_encoding_size:', opt.input_encoding_size) # 512
+        self.mcb = CompactBilinearPooling(opt.rnn_size, opt.input_encoding_size, opt.input_encoding_size+opt.rnn_size).cuda()
 
     def forward(self, xt, fc_feats, att_feats, p_att_feats, state, att_masks=None):
         prev_h = state[0][-1]
 
-        # att_lstm_input = torch.cat([prev_h, fc_feats, xt], 1)
         att_lstm_input = torch.cat([prev_h, fc_feats, xt], 1)
-        print 'att_lstm_input:', att_lstm_input.shape
+        # print('prev_h:', prev_h.shape) # 320 * 512
+        # print('fc_feats:', fc_feats.shape) # 320 * 512
+        # print('xt:', xt.shape) # 320 * 512
+        # print('ori att_lstm_input:', att_lstm_input.shape)
         mcb_feats = self.mcb(fc_feats, xt)
-        print 'mcb_feats:', mcb_feats.shape
-        att_lstm_input = torch.cat([prev_h, mcb_feats]
+        # print('mcb_feats:', mcb_feats.shape) # 320 * 1024
+        att_lstm_input = torch.cat([prev_h, mcb_feats], 1)
+        # print('now att_lstm_input:', att_lstm_input.shape)
 
         h_att, c_att = self.att_lstm(att_lstm_input, (state[0][0], state[1][0]))
 
@@ -440,13 +448,6 @@ class TopDownCore(nn.Module):
         state = (torch.stack([h_att, h_lang]), torch.stack([c_att, c_lang]))
 
         return output, state
-
-
-############################################################################
-# Notice:
-# StackAtt and DenseAtt are models that I randomly designed.
-# They are not related to any paper.
-############################################################################
 
 from .FCModel import LSTMCore
 
@@ -574,9 +575,9 @@ class Att2all2Core(nn.Module):
         state = (next_h.unsqueeze(0), next_c.unsqueeze(0))
         return output, state
 
-class TopDownModel(AttModel):
+class MCBTopDownModel(AttModel):
     def __init__(self, opt):
-        super(TopDownModel, self).__init__(opt)
+        super(MCBTopDownModel, self).__init__(opt)
         self.num_layers = 2
-        self.core = TopDownCore(opt)
+        self.core = MCBTopDownCore(opt)
 

@@ -10,14 +10,14 @@ import torch
 
 import sys
 # <<<<<<< HEAD
-# sys.path.append("/media/disk0/jay/workspace/self-critical.pytorch/cider")
-# sys.path.append("/media/disk0/jay/workspace/self-critical.pytorch/misc/cider/pyciderevalcap/ciderD")
-# from ciderD import CiderD
+sys.path.append("/media/disk0/jay/workspace/self-critical.pytorch/cider")
+sys.path.append("/media/disk0/jay/workspace/self-critical.pytorch/misc/cider/pyciderevalcap/ciderD")
+from ciderD import CiderD
 # =======
-sys.path.append("cider")
-from pyciderevalcap.ciderD.ciderD import CiderD
-sys.path.append("coco-caption")
-from pycocoevalcap.bleu.bleu import Bleu
+# sys.path.append("cider")
+# from pyciderevalcap.ciderD.ciderD import CiderD
+# sys.path.append("coco-caption")
+# from pycocoevalcap.bleu.bleu import Bleu
 # >>>>>>> upstream/master
 
 CiderD_scorer = None
