@@ -56,8 +56,8 @@ def language_eval(dataset, preds, model_id, split):
     return out
 
 def eval_split(model, crit, loader, eval_kwargs={}):
-    verbose = eval_kwargs.get('verbose', True)
-    verbose_beam = eval_kwargs.get('verbose_beam', 1)
+    verbose = eval_kwargs.get('verbose', 0)
+    verbose_beam = eval_kwargs.get('verbose_beam', 0)
     verbose_loss = eval_kwargs.get('verbose_loss', 1)
     num_images = eval_kwargs.get('num_images', eval_kwargs.get('val_images_use', -1))
     split = eval_kwargs.get('split', 'val')
@@ -119,7 +119,7 @@ def eval_split(model, crit, loader, eval_kwargs={}):
                 print(cmd)
                 os.system(cmd)
 
-            if False:
+            if verbose:
                 print('image %s: %s' %(entry['image_id'], entry['caption']))
 
         # if we wrapped around the split or used up val imgs budget then bail

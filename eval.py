@@ -79,7 +79,9 @@ parser.add_argument('--coco_json', type=str, default='',
 # misc
 parser.add_argument('--id', type=str, default='', 
                 help='an id identifying this run/job. used only if language_eval = 1 for appending to intermediate files')
-parser.add_argument('--verbose_beam', type=int, default=1, 
+parser.add_argument('--verbose', type=int, default=0, 
+                help='if we need to print out all caption.')
+parser.add_argument('--verbose_beam', type=int, default=0, 
                 help='if we need to print out all beam search beams.')
 parser.add_argument('--verbose_loss', type=int, default=0, 
                 help='if we need to calculate loss.')
