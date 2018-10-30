@@ -420,19 +420,23 @@ class MCBTopDownCore(nn.Module):
         # print('rnn_size:', opt.rnn_size) # 512
         # print('fc_feats:', opt.fc_feat_size) # 2048
         # print('input_encoding_size:', opt.input_encoding_size) # 512
-        self.mcb = CompactBilinearPooling(opt.rnn_size, opt.input_encoding_size, opt.input_encoding_size+opt.rnn_size).cuda()
+        self.mcb1 = CompactBilinearPooling(opt.rnn_size, opt.input_encoding_size, opt.input_encoding_size+opt.rnn_size).cuda()
+        self.mcb2 = CompactBilinearPooling(opt.rnn_size+opt.input_encoding_size, opt.rnn_size, 3*opt.rnn_size).cuda()
 
     def forward(self, xt, fc_feats, att_feats, p_att_feats, state, att_masks=None):
         prev_h = state[0][-1]
 
-        att_lstm_input = torch.cat([prev_h, fc_feats, xt], 1)
+        # att_lstm_input = torch.cat([prev_h, fc_feats, xt], 1)
+
         # print('prev_h:', prev_h.shape) # 320 * 512
         # print('fc_feats:', fc_feats.shape) # 320 * 512
         # print('xt:', xt.shape) # 320 * 512
         # print('ori att_lstm_input:', att_lstm_input.shape)
-        mcb_feats = self.mcb(fc_feats, xt)
+
+        mcb_feats = self.mcb1(fc_feats, xt)
         # print('mcb_feats:', mcb_feats.shape) # 320 * 1024
-        att_lstm_input = torch.cat([prev_h, mcb_feats], 1)
+        # att_lstm_input = torch.cat([prev_h, mcb_feats], 1) # 320 * 1526
+        att_lstm_input = self.mcb2(mcb_feats, prev_h)
         # print('now att_lstm_input:', att_lstm_input.shape)
 
         h_att, c_att = self.att_lstm(att_lstm_input, (state[0][0], state[1][0]))
@@ -440,6 +444,10 @@ class MCBTopDownCore(nn.Module):
         att = self.attention(h_att, att_feats, p_att_feats, att_masks)
 
         lang_lstm_input = torch.cat([att, h_att], 1)
+        # print('ori lang_lstm_input:', lang_lstm_input.shape)
+        # print('att:', att.shape)
+        # print('h_att:', h_att.shape)
+        lang_lstm_input = self.mcb1(att, h_att)
         # lang_lstm_input = torch.cat([att, F.dropout(h_att, self.drop_prob_lm, self.training)], 1) ?????
 
         h_lang, c_lang = self.lang_lstm(lang_lstm_input, (state[0][1], state[1][1]))
