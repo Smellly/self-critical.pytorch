@@ -119,7 +119,7 @@ def eval_split(model, crit, loader, eval_kwargs={}):
                 print(cmd)
                 os.system(cmd)
 
-            if verbose:
+            if False:
                 print('image %s: %s' %(entry['image_id'], entry['caption']))
 
         # if we wrapped around the split or used up val imgs budget then bail
