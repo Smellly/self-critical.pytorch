@@ -45,7 +45,11 @@ def parse_opt():
 
 
     parser.add_argument('--use_bn', type=int, default=0,
-                    help='If 1, then do batch_normalization first in att_embed, if 2 then do bn both in the beginning and the end of att_embed')
+                    help='If 1, then do batch_normalization first in att_embed, \
+                          if 2 then do bn both in the beginning and the end of att_embed')
+    parser.add_argument('--use_ln', type=int, default=0,
+                    help='If 1, then do layer_normalization first in att_embed, \
+                          if 2 then do bn both in the beginning and the end of att_embed')
 
     # feature manipulation
     parser.add_argument('--norm_att_feat', type=int, default=0,

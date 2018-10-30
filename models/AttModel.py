@@ -59,6 +59,7 @@ class AttModel(CaptionModel):
         self.att_hid_size = opt.att_hid_size
 
         self.use_bn = getattr(opt, 'use_bn', 0)
+        self.use_ln = getattr(opt, 'use_ln', 0)
 
         self.ss_prob = 0.0 # Schedule sampling probability
 
@@ -68,12 +69,23 @@ class AttModel(CaptionModel):
         self.fc_embed = nn.Sequential(nn.Linear(self.fc_feat_size, self.rnn_size),
                                     nn.ReLU(),
                                     nn.Dropout(self.drop_prob_lm))
+        if self.use_ln:
+            print('Using LayerNorm')
+
         self.att_embed = nn.Sequential(*(
-                                    ((nn.BatchNorm1d(self.att_feat_size),) if self.use_bn else ())+
+                                    ((nn.LayerNorm(self.att_feat_size),) if self.use_ln else ())+
                                     (nn.Linear(self.att_feat_size, self.rnn_size),
                                     nn.ReLU(),
                                     nn.Dropout(self.drop_prob_lm))+
-                                    ((nn.BatchNorm1d(self.rnn_size),) if self.use_bn==2 else ())))
+                                    ((nn.BatchNorm1d(self.rnn_size),) if self.use_ln==2 else ())))
+        if not self.use_ln and self.use_bn:
+            print('Using BatchNorm')
+            self.att_embed = nn.Sequential(*(
+                                        ((nn.BatchNorm1d(self.att_feat_size),) if self.use_bn else ())+
+                                        (nn.Linear(self.att_feat_size, self.rnn_size),
+                                        nn.ReLU(),
+                                        nn.Dropout(self.drop_prob_lm))+
+                                        ((nn.BatchNorm1d(self.rnn_size),) if self.use_bn==2 else ())))
 
         self.logit_layers = getattr(opt, 'logit_layers', 1)
         if self.logit_layers == 1:

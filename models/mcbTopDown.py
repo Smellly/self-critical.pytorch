@@ -64,6 +64,7 @@ class AttModel(CaptionModel):
         self.att_hid_size = opt.att_hid_size
 
         self.use_bn = getattr(opt, 'use_bn', 0)
+        self.use_ln = getattr(opt, 'use_ln', 0)
 
         self.ss_prob = 0.0 # Schedule sampling probability
 
@@ -74,11 +75,18 @@ class AttModel(CaptionModel):
                                     nn.ReLU(),
                                     nn.Dropout(self.drop_prob_lm))
         self.att_embed = nn.Sequential(*(
-                                    ((nn.BatchNorm1d(self.att_feat_size),) if self.use_bn else ())+
+                                    ((nn.LayerNorm(self.att_feat_size),) if self.use_ln else ())+
                                     (nn.Linear(self.att_feat_size, self.rnn_size),
                                     nn.ReLU(),
                                     nn.Dropout(self.drop_prob_lm))+
-                                    ((nn.BatchNorm1d(self.rnn_size),) if self.use_bn==2 else ())))
+                                    ((nn.BatchNorm1d(self.rnn_size),) if self.use_ln==2 else ())))
+        if not self.use_ln and self.use_bn:
+            self.att_embed = nn.Sequential(*(
+                                        ((nn.BatchNorm1d(self.att_feat_size),))+
+                                        (nn.Linear(self.att_feat_size, self.rnn_size),
+                                        nn.ReLU(),
+                                        nn.Dropout(self.drop_prob_lm))+
+                                        ((nn.BatchNorm1d(self.rnn_size),) if self.use_bn==2 else ())))
 
         self.logit_layers = getattr(opt, 'logit_layers', 1)
         if self.logit_layers == 1:
@@ -443,7 +451,7 @@ class MCBTopDownCore(nn.Module):
 
         att = self.attention(h_att, att_feats, p_att_feats, att_masks)
 
-        lang_lstm_input = torch.cat([att, h_att], 1)
+        # lang_lstm_input = torch.cat([att, h_att], 1)
         # print('ori lang_lstm_input:', lang_lstm_input.shape)
         # print('att:', att.shape)
         # print('h_att:', h_att.shape)
