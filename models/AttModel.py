@@ -77,7 +77,7 @@ class AttModel(CaptionModel):
                                     (nn.Linear(self.att_feat_size, self.rnn_size),
                                     nn.ReLU(),
                                     nn.Dropout(self.drop_prob_lm))+
-                                    ((nn.BatchNorm1d(self.rnn_size),) if self.use_ln==2 else ())))
+                                    ((nn.LayerNorm(self.rnn_size),) if self.use_ln==2 else ())))
         if not self.use_ln and self.use_bn:
             print('Using BatchNorm')
             self.att_embed = nn.Sequential(*(
