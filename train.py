@@ -44,6 +44,7 @@ def train(opt):
 
     infos = {}
     histories = {}
+    print('start from %s'%opt.start_from)
     if opt.start_from is not None:
         # open old infos and check if models are compatible
         with open(os.path.join(opt.start_from, 'infos_'+opt.id+'.pkl')) as f:
@@ -57,6 +58,9 @@ def train(opt):
         if os.path.isfile(os.path.join(opt.start_from, 'histories_'+opt.id+'.pkl')):
             with open(os.path.join(opt.start_from, 'histories_'+opt.id+'.pkl')) as f:
                 histories = cPickle.load(f)
+
+        print('epoch     : %d'%infos['epoch'])
+        print('iteration : %d'%infos['iter'])
 
     iteration = infos.get('iter', 0)
     epoch = infos.get('epoch', 0)
@@ -86,6 +90,9 @@ def train(opt):
     if vars(opt).get('start_from', None) is not None and os.path.isfile(os.path.join(opt.start_from,"optimizer.pth")):
         optimizer.load_state_dict(torch.load(os.path.join(opt.start_from, 'optimizer.pth')))
 
+    print('save_checkpoint_every :%d'%opt.save_checkpoint_every )
+    if tb:
+        print('log_every :%d'%opt.losses_log_every )
     while True:
         if update_lr_flag:
                 # Assign the learning rate
@@ -191,6 +198,7 @@ def train(opt):
                     best_flag = True
                 checkpoint_path = os.path.join(opt.checkpoint_path, 'model.pth')
                 torch.save(model.state_dict(), checkpoint_path)
+                print("best val score now is {}".format(best_val_score))
                 print("model saved to {}".format(checkpoint_path))
                 optimizer_path = os.path.join(opt.checkpoint_path, 'optimizer.pth')
                 torch.save(optimizer.state_dict(), optimizer_path)

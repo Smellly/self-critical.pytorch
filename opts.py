@@ -3,6 +3,8 @@ import argparse
 def parse_opt():
     parser = argparse.ArgumentParser()
     # Data input settings
+    parser.add_argument('--cnn_model', type=str,  default='resnet101',
+                    help='vConcept, resnet101, resnet152')
     parser.add_argument('--input_json', type=str, default='data/coco.json',
                     help='path to the json file containing additional info and vocab')
     parser.add_argument('--input_fc_dir', type=str, default='data/cocotalk_fc',

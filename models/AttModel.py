@@ -72,12 +72,12 @@ class AttModel(CaptionModel):
         if self.use_ln:
             print('Using LayerNorm')
 
-        self.att_embed = nn.Sequential(*(
-                                    ((nn.LayerNorm(self.att_feat_size),) if self.use_ln else ())+
-                                    (nn.Linear(self.att_feat_size, self.rnn_size),
-                                    nn.ReLU(),
-                                    nn.Dropout(self.drop_prob_lm))+
-                                    ((nn.LayerNorm(self.rnn_size),) if self.use_ln==2 else ())))
+            self.att_embed = nn.Sequential(*(
+                                        ((nn.LayerNorm(self.att_feat_size),) if self.use_ln else ())+
+                                        (nn.Linear(self.att_feat_size, self.rnn_size),
+                                        nn.ReLU(),
+                                        nn.Dropout(self.drop_prob_lm))+
+                                        ((nn.LayerNorm(self.rnn_size),) if self.use_ln==2 else ())))
         if not self.use_ln and self.use_bn:
             print('Using BatchNorm')
             self.att_embed = nn.Sequential(*(
@@ -86,6 +86,12 @@ class AttModel(CaptionModel):
                                         nn.ReLU(),
                                         nn.Dropout(self.drop_prob_lm))+
                                         ((nn.BatchNorm1d(self.rnn_size),) if self.use_bn==2 else ())))
+
+        else:
+            self.att_embed = nn.Sequential(*(
+                                        (nn.Linear(self.att_feat_size, self.rnn_size),
+                                        nn.ReLU(),
+                                        nn.Dropout(self.drop_prob_lm))))
 
         self.logit_layers = getattr(opt, 'logit_layers', 1)
         if self.logit_layers == 1:
@@ -309,7 +315,7 @@ class AdaAtt_lstm(nn.Module):
             out_gate = sigmoid_chunk.narrow(1, self.rnn_size * 2, self.rnn_size)
             # decode the write inputs
             if not self.use_maxout:
-                in_transform = F.tanh(all_input_sums.narrow(1, 3 * self.rnn_size, self.rnn_size))
+                in_transform = torch.tanh(all_input_sums.narrow(1, 3 * self.rnn_size, self.rnn_size))
             else:
                 in_transform = all_input_sums.narrow(1, 3 * self.rnn_size, 2 * self.rnn_size)
                 in_transform = torch.max(\
@@ -318,7 +324,7 @@ class AdaAtt_lstm(nn.Module):
             # perform the LSTM update
             next_c = forget_gate * prev_c + in_gate * in_transform
             # gated cells form the output
-            tanh_nex_c = F.tanh(next_c)
+            tanh_nex_c = torch.tanh(next_c)
             next_h = out_gate * tanh_nex_c
             if L == self.num_layers-1:
                 if L == 0:
@@ -385,7 +391,7 @@ class AdaAtt_attention(nn.Module):
         img_all = torch.cat([fake_region.view(-1,1,self.input_encoding_size), conv_feat], 1)
         img_all_embed = torch.cat([fake_region_embed.view(-1,1,self.input_encoding_size), conv_feat_embed], 1)
 
-        hA = F.tanh(img_all_embed + txt_replicate)
+        hA = torch.tanh(img_all_embed + txt_replicate)
         hA = F.dropout(hA,self.drop_prob_lm, self.training)
         
         hAflat = self.alpha_net(hA.view(-1, self.att_hid_size))
@@ -401,7 +407,7 @@ class AdaAtt_attention(nn.Module):
 
         atten_out = visAttdim + h_out_linear
 
-        h = F.tanh(self.att2h(atten_out))
+        h = torch.tanh(self.att2h(atten_out))
         h = F.dropout(h, self.drop_prob_lm, self.training)
         return h
 
@@ -424,9 +430,13 @@ class TopDownCore(nn.Module):
         self.att_lstm = nn.LSTMCell(opt.input_encoding_size + opt.rnn_size * 2, opt.rnn_size) # we, fc, h^2_t-1
         self.lang_lstm = nn.LSTMCell(opt.rnn_size * 2, opt.rnn_size) # h^1_t, \hat v
         self.attention = Attention(opt)
+        # self.layernorm = nn.Sequential(
+        #                             *((nn.LayerNorm(3 * opt.rnn_size),) if opt.use_ln else ()))
 
     def forward(self, xt, fc_feats, att_feats, p_att_feats, state, att_masks=None):
         prev_h = state[0][-1]
+
+        # att_lstm_input = self.layernorm(torch.cat([prev_h, fc_feats, xt], 1))
         att_lstm_input = torch.cat([prev_h, fc_feats, xt], 1)
 
         h_att, c_att = self.att_lstm(att_lstm_input, (state[0][0], state[1][0]))
@@ -537,7 +547,7 @@ class Attention(nn.Module):
         att_h = self.h2att(h)                        # batch * att_hid_size
         att_h = att_h.unsqueeze(1).expand_as(att)            # batch * att_size * att_hid_size
         dot = att + att_h                                   # batch * att_size * att_hid_size
-        dot = F.tanh(dot)                                # batch * att_size * att_hid_size
+        dot = torch.tanh(dot)                                # batch * att_size * att_hid_size
         dot = dot.view(-1, self.att_hid_size)               # (batch * att_size) * att_hid_size
         dot = self.alpha_net(dot)                           # (batch * att_size) * 1
         dot = dot.view(-1, att_size)                        # batch * att_size
@@ -587,7 +597,7 @@ class Att2in2Core(nn.Module):
             in_transform.narrow(1, 0, self.rnn_size),
             in_transform.narrow(1, self.rnn_size, self.rnn_size))
         next_c = forget_gate * state[1][-1] + in_gate * in_transform
-        next_h = out_gate * F.tanh(next_c)
+        next_h = out_gate * torch.tanh(next_c)
 
         output = self.dropout(next_h)
         state = (next_h.unsqueeze(0), next_c.unsqueeze(0))
@@ -638,7 +648,7 @@ class Att2all2Core(nn.Module):
             in_transform.narrow(1, 0, self.rnn_size),
             in_transform.narrow(1, self.rnn_size, self.rnn_size))
         next_c = forget_gate * state[1][-1] + in_gate * in_transform
-        next_h = out_gate * F.tanh(next_c)
+        next_h = out_gate * torch.tanh(next_c)
 
         output = self.dropout(next_h)
         state = (next_h.unsqueeze(0), next_c.unsqueeze(0))

@@ -24,7 +24,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--model', type=str, default='',
                 help='path to model to evaluate')
 parser.add_argument('--cnn_model', type=str,  default='resnet101',
-                help='resnet101, resnet152')
+                help='vConcept, resnet101, resnet152')
 parser.add_argument('--infos_path', type=str, default='',
                 help='path to infos to evaluate')
 # Basic options
@@ -135,8 +135,11 @@ loader.ix_to_word = infos['vocab']
 
 
 # Set sample options
-loss, split_predictions, lang_stats = eval_utils.eval_split(model, crit, loader, 
-    vars(opt))
+loss, split_predictions, lang_stats = eval_utils.eval_split(
+        model, 
+        crit, 
+        loader, 
+        vars(opt))
 
 print('loss: ', loss)
 if lang_stats:

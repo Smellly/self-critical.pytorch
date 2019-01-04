@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torchvision.models.resnet
+from torchvision import models
 from torchvision.models.resnet import BasicBlock, Bottleneck
 
 class ResNet(torchvision.models.resnet.ResNet):
@@ -69,3 +70,13 @@ def resnet152(pretrained=False):
     if pretrained:
         model.load_state_dict(model_zoo.load_url(model_urls['resnet152']))
     return model
+
+def vConcept101(pretrained=False, vocab_size=9360, modelPath=''):
+    model = models.resnet101()
+    fc_features = model.fc.in_features
+    model.fc = nn.Linear(fc_features, vocab_size)
+
+    if pretrained:
+        model.load_state_dict(torch.load(modelPath))
+    return model
+
