@@ -2,6 +2,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+from datetime import datetime
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -38,7 +40,9 @@ def train(opt):
     opt.vocab_size = loader.vocab_size
     opt.seq_length = loader.seq_length
 
-    tb_summary_writer = tb and tb.SummaryWriter(opt.checkpoint_path)
+    TIMESTAMP = "{0:%Y-%m-%dT%H-%M-%S/}".format(datetime.now())
+    tb_summary_writer = tb and tb.SummaryWriter(
+                                os.path.join(opt.checkpoint_path, TIMESTAMP))
     if not os.path.exists(opt.checkpoint_path):
         os.mkdir(opt.checkpoint_path)
 
