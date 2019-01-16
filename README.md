@@ -17,6 +17,12 @@ cider (already been added as a submodule)
 
 (**Skip if you are using bottom-up feature**): If you want to use resnet to extract image features, you need to download pretrained resnet model for both training and evaluation. The models can be downloaded from [here](https://drive.google.com/open?id=0B7fNdx_jAqhtbVYzOURMdDNHSGM), and should be placed in `data/imagenet_weights`.
 
+## Usage  
+```
+git clone --recurse-submodules https://github.com/Smellly/self-critical.pytorch.git
+# if failed
+# git submodule update --init --recursive
+```
 ## Pretrained models (using resnet101 feature)
 Pretrained models are provided [here](https://drive.google.com/open?id=0B7fNdx_jAqhtdE1JRXpmeGJudTg). And the performances of each model will be maintained in this [issue](https://github.com/ruotianluo/neuraltalk2.pytorch/issues/10).
 

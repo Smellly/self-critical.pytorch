@@ -2,7 +2,7 @@
 	path = coco-caption
 	url = https://github.com/tylin/coco-caption.git
 [submodule "cider"]
-	path = cider
+	path = misc/cider
 	url = https://github.com/ruotianluo/cider.git
 [submodule "pytorch_compact_bilinear_pooling"]
 	path = pytorch_compact_bilinear_pooling
