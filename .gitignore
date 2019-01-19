@@ -7,3 +7,6 @@ log*
 vis
 
 misc/rewards.py
+misc/resnet.py
+
+data
