@@ -115,7 +115,11 @@ def eval_split(model, crit, loader, eval_kwargs={}):
             predictions.append(entry)
             if eval_kwargs.get('dump_images', 0) == 1:
                 # dump the raw image to vis/ folder
-                cmd = 'cp "' + os.path.join(eval_kwargs['image_root'], data['infos'][k]['file_path']) + '" vis/imgs/img' + str(len(predictions)) + '.jpg' # bit gross
+                cmd = 'cp "' + \
+                        os.path.join(
+                            eval_kwargs['image_root'], 
+                            data['infos'][k]['file_path']) + \
+                        '" vis/imgs/img' + str(len(predictions)) + '.jpg' # bit gross
                 print(cmd)
                 os.system(cmd)
 
@@ -135,12 +139,16 @@ def eval_split(model, crit, loader, eval_kwargs={}):
         if data['bounds']['wrapped']:
             break
         if num_images >= 0 and n >= num_images:
+            print("break")
             break
 
     lang_stats = None
     if lang_eval == 1:
+        print("language eval begin")
         lang_stats = language_eval(dataset, predictions, eval_kwargs['id'], split)
+        print("language eval done")
 
     # Switch back to training mode
     model.train()
+    print("# Switch back to training mode")
     return loss_sum/loss_evals, predictions, lang_stats
