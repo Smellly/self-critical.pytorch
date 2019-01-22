@@ -47,13 +47,18 @@ preprocess = trn.Compose([
 ])
 
 import sys
-print(os.getcwd())
-print(sys.path)
+# print(os.getcwd())
+# print(sys.path)
 from misc.resnet_utils import myResnet
 import misc.resnet as resnet
 
 def main(params):
-  net = getattr(resnet, params['model'])()
+  if params['vocab_size']:
+    net = getattr(resnet, params['model'])(
+            pretrained=False,
+            vocab_size=params['vocab_size'])
+  else:
+    net = getattr(resnet, params['model'])()
   net.load_state_dict(torch.load(os.path.join(params['model_root'],params['model']+'.pth')))
   # Or load using network
   # if params['model'] == 'resnet101':
@@ -111,6 +116,8 @@ if __name__ == "__main__":
   parser.add_argument('--att_size', default=14, type=int, help='14x14 or 7x7')
   parser.add_argument('--model', default='resnet101', type=str, help='resnet101, resnet152')
   parser.add_argument('--model_root', default='./data/imagenet_weights', type=str, help='model root')
+  parser.add_argument('--vocab_size', default=0, type=int, 
+                                        help='0(default resnet), 4267 or 9360')
 
   args = parser.parse_args()
   params = vars(args) # convert to ordinary dict
