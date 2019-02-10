@@ -68,15 +68,21 @@ def resnet152(pretrained=False):
     """
     model = ResNet(Bottleneck, [3, 8, 36, 3])
     if pretrained:
-        model.load_state_dict(model_zoo.load_url(model_urls['resnet152']))
+        model.load_state_dict(
+                model_zoo.load_url(model_urls['resnet152']))
     return model
 
-def vConcept101(pretrained=False, vocab_size=9360, modelPath=''):
+def vConcept101(
+        pretrained=False, 
+        vocab_size=9360, 
+        modelPath=''):
+
     model = models.resnet101()
     fc_features = model.fc.in_features
     model.fc = nn.Linear(fc_features, vocab_size)
 
     if pretrained:
         model.load_state_dict(torch.load(modelPath))
+
     return model
 
