@@ -39,10 +39,12 @@ import numpy as np
 import torch
 import torchvision.models as models
 import skimage.io
+from skimage.transform import resize
 
 from torchvision import transforms as trn
 preprocess = trn.Compose([
         #trn.ToTensor(),
+        #trn.Resize((256, 256)),
         trn.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 ])
 
@@ -100,11 +102,15 @@ def main(params):
       I = I[:,:,np.newaxis]
       I = np.concatenate((I,I,I), axis=2)
 
+    I = resize(I, (224, 224, 3), anti_aliasing=True)
     I = I.astype('float32')/255.0
     I = torch.from_numpy(I.transpose([2,0,1])).cuda()
     I = preprocess(I)
     with torch.no_grad():
-      tmp_fc, tmp_att = my_resnet(I, params['att_size'])
+        tmp_fc, tmp_att = my_resnet(
+                I, 
+                params['att_size'],
+                params['visual_concepts'])
     # write to pkl
     np.save(
             os.path.join(dir_fc, str(img['cocoid'])), 
@@ -115,6 +121,9 @@ def main(params):
 
     if i % 1000 == 0:
       print('processing %d/%d (%.2f%% done)' % (i, N, i*100.0/N))
+
+    # break
+
   print('wrote ', params['output_dir'])
 
 if __name__ == "__main__":
@@ -132,6 +141,8 @@ if __name__ == "__main__":
   parser.add_argument('--model_root', default='./data/imagenet_weights', type=str, help='model root')
   parser.add_argument('--vocab_size', default=0, type=int, 
                                         help='0(default resnet), 4267 or 9360')
+  parser.add_argument('--visual_concepts', default=0, type=int, 
+                                        help='0(default), 1(use visual concepts)')
 
   args = parser.parse_args()
   params = vars(args) # convert to ordinary dict
