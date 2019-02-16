@@ -14,7 +14,6 @@ import torch.utils.data as data
 import multiprocessing
 
 class DataLoader(data.Dataset):
-
     def reset_iterator(self, split):
         del self._prefetch_process[split]
         self._prefetch_process[split] = BlobFetcher(split, self, split=='train')
@@ -119,10 +118,16 @@ class DataLoader(data.Dataset):
         batch_size = batch_size or self.batch_size
         seq_per_img = seq_per_img or self.seq_per_img
 
-        fc_batch = [] # np.ndarray((batch_size * seq_per_img, self.opt.fc_feat_size), dtype = 'float32')
-        att_batch = [] # np.ndarray((batch_size * seq_per_img, 14, 14, self.opt.att_feat_size), dtype = 'float32')
-        label_batch = np.zeros([batch_size * seq_per_img, self.seq_length + 2], dtype = 'int')
-        mask_batch = np.zeros([batch_size * seq_per_img, self.seq_length + 2], dtype = 'float32')
+        # np.ndarray(
+        #   (batch_size * seq_per_img, self.opt.fc_feat_size), dtype = 'float32')
+        fc_batch = [] 
+        # np.ndarray(
+        #   (batch_size * seq_per_img, 14, 14, self.opt.att_feat_size), dtype = 'float32')
+        att_batch = [] 
+        label_batch = np.zeros(
+                [batch_size * seq_per_img, self.seq_length + 2], dtype = 'int')
+        mask_batch = np.zeros(
+                [batch_size * seq_per_img, self.seq_length + 2], dtype = 'float32')
 
         wrapped = False
 
@@ -136,13 +141,16 @@ class DataLoader(data.Dataset):
             fc_batch.append(tmp_fc)
             att_batch.append(tmp_att)
             
-            label_batch[i * seq_per_img : (i + 1) * seq_per_img, 1 : self.seq_length + 1] = self.get_captions(ix, seq_per_img)
+            label_batch[i * seq_per_img : (i + 1) * seq_per_img, 
+                    1 : self.seq_length + 1] = self.get_captions(ix, seq_per_img)
 
             if tmp_wrapped:
                 wrapped = True
 
             # Used for reward evaluation
-            gts.append(self.h5_label_file['labels'][self.label_start_ix[ix] - 1: self.label_end_ix[ix]])
+            gts.append(
+                    self.h5_label_file['labels'][
+                        self.label_start_ix[ix] - 1: self.label_end_ix[ix]])
         
             # record associated info as well
             info_dict = {}
@@ -153,16 +161,32 @@ class DataLoader(data.Dataset):
 
         # #sort by att_feat length
         # fc_batch, att_batch, label_batch, gts, infos = \
-        #     zip(*sorted(zip(fc_batch, att_batch, np.vsplit(label_batch, batch_size), gts, infos), key=lambda x: len(x[1]), reverse=True))
+        #     zip(*sorted(
+        #         zip(fc_batch, att_batch, np.vsplit(label_batch, batch_size), gts, infos), 
+        #               key=lambda x: len(x[1]), 
+        #               reverse=True))
         fc_batch, att_batch, label_batch, gts, infos = \
-            zip(*sorted(zip(fc_batch, att_batch, np.vsplit(label_batch, batch_size), gts, infos), key=lambda x: 0, reverse=True))
+            zip(*sorted(
+                    zip(
+                        fc_batch, 
+                        att_batch, 
+                        np.vsplit(label_batch, batch_size), 
+                        gts, 
+                        infos), 
+                    key=lambda x: 0, 
+                    reverse=True))
         data = {}
-        data['fc_feats'] = np.stack(reduce(lambda x,y:x+y, [[_]*seq_per_img for _ in fc_batch]))
+        data['fc_feats'] = np.stack(
+                reduce(lambda x,y:x+y, [[_]*seq_per_img for _ in fc_batch]))
         # merge att_feats
         max_att_len = max([_.shape[0] for _ in att_batch])
-        data['att_feats'] = np.zeros([len(att_batch)*seq_per_img, max_att_len, att_batch[0].shape[1]], dtype = 'float32')
+        data['att_feats'] = np.zeros(
+                [len(att_batch)*seq_per_img, max_att_len, att_batch[0].shape[1]], 
+                dtype = 'float32')
         for i in range(len(att_batch)):
-            data['att_feats'][i*seq_per_img:(i+1)*seq_per_img, :att_batch[i].shape[0]] = att_batch[i]
+            data['att_feats'][
+                        i*seq_per_img:(i+1)*seq_per_img, :att_batch[i].shape[0]
+                    ] = att_batch[i]
         data['att_masks'] = np.zeros(data['att_feats'].shape[:2], dtype='float32')
         for i in range(len(att_batch)):
             data['att_masks'][i*seq_per_img:(i+1)*seq_per_img, :att_batch[i].shape[0]] = 1
@@ -178,7 +202,10 @@ class DataLoader(data.Dataset):
         data['masks'] = mask_batch
 
         data['gts'] = gts # all ground truth captions of each images
-        data['bounds'] = {'it_pos_now': self.iterators[split], 'it_max': len(self.split_ix[split]), 'wrapped': wrapped}
+        data['bounds'] = {
+                'it_pos_now': self.iterators[split], 
+                'it_max': len(self.split_ix[split]), 
+                'wrapped': wrapped}
         data['infos'] = infos
 
         return data

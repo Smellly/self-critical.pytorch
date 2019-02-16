@@ -431,7 +431,7 @@ class TopDownCore(nn.Module):
         self.lang_lstm = nn.LSTMCell(opt.rnn_size * 2, opt.rnn_size) # h^1_t, \hat v
         self.attention = Attention(opt)
         # self.layernorm = nn.Sequential(
-        #                             *((nn.LayerNorm(3 * opt.rnn_size),) if opt.use_ln else ()))
+        #           *((nn.LayerNorm(3 * opt.rnn_size),) if opt.use_ln else ()))
 
     def forward(self, xt, fc_feats, att_feats, p_att_feats, state, att_masks=None):
         prev_h = state[0][-1]
@@ -444,7 +444,8 @@ class TopDownCore(nn.Module):
         att = self.attention(h_att, att_feats, p_att_feats, att_masks)
 
         lang_lstm_input = torch.cat([att, h_att], 1)
-        # lang_lstm_input = torch.cat([att, F.dropout(h_att, self.drop_prob_lm, self.training)], 1) ?????
+        # lang_lstm_input = torch.cat(
+        #     [att, F.dropout(h_att, self.drop_prob_lm, self.training)], 1) ?????
 
         h_lang, c_lang = self.lang_lstm(lang_lstm_input, (state[0][1], state[1][1]))
 

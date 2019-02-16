@@ -91,8 +91,10 @@ def train(opt):
 
     optimizer = utils.build_optimizer(model.parameters(), opt)
     # Load the optimizer
-    if vars(opt).get('start_from', None) is not None and os.path.isfile(os.path.join(opt.start_from,"optimizer.pth")):
-        optimizer.load_state_dict(torch.load(os.path.join(opt.start_from, 'optimizer.pth')))
+    if vars(opt).get('start_from', None) is not None \
+            and os.path.isfile(os.path.join(opt.start_from,"optimizer.pth")):
+        optimizer.load_state_dict(
+                torch.load(os.path.join(opt.start_from, 'optimizer.pth')))
 
     print('save_checkpoint_every :%d'%opt.save_checkpoint_every )
     if tb:
@@ -130,17 +132,38 @@ def train(opt):
         torch.cuda.synchronize()
         start = time.time()
 
-        tmp = [data['fc_feats'], data['att_feats'], data['labels'], data['masks'], data['att_masks']]
+        tmp = [
+                data['fc_feats'], 
+                data['att_feats'], 
+                data['labels'], 
+                data['masks'], 
+                data['att_masks']]
         tmp = [_ if _ is None else torch.from_numpy(_).cuda() for _ in tmp]
         fc_feats, att_feats, labels, masks, att_masks = tmp
         
         optimizer.zero_grad()
         if not sc_flag:
-            loss = crit(dp_model(fc_feats, att_feats, labels, att_masks), labels[:,1:], masks[:,1:])
+            loss = crit(
+                    dp_model(
+                        fc_feats, 
+                        att_feats, 
+                        labels, 
+                        att_masks), 
+                    labels[:,1:], 
+                    masks[:,1:])
         else:
-            gen_result, sample_logprobs = dp_model(fc_feats, att_feats, att_masks, opt={'sample_max':0}, mode='sample')
-            reward = get_self_critical_reward(dp_model, fc_feats, att_feats, att_masks, data, gen_result, opt)
-            loss = rl_crit(sample_logprobs, gen_result.data, torch.from_numpy(reward).float().cuda())
+            gen_result, sample_logprobs = dp_model(
+                    fc_feats, 
+                    att_feats, 
+                    att_masks, 
+                    opt={'sample_max':0}, 
+                    mode='sample')
+            reward = get_self_critical_reward(
+                    dp_model, fc_feats, att_feats, att_masks, data, gen_result, opt)
+            loss = rl_crit(
+                    sample_logprobs, 
+                    gen_result.data, 
+                    torch.from_numpy(reward).float().cuda())
 
         loss.backward()
         utils.clip_gradient(optimizer, opt.grad_clip)
@@ -180,7 +203,8 @@ def train(opt):
             eval_kwargs = {'split': 'val',
                             'dataset': opt.input_json}
             eval_kwargs.update(vars(opt))
-            val_loss, predictions, lang_stats = eval_utils.eval_split(dp_model, crit, loader, eval_kwargs)
+            val_loss, predictions, lang_stats = eval_utils.eval_split(
+                    dp_model, crit, loader, eval_kwargs)
 
             # Write validation result into summary
             add_summary_value(tb_summary_writer, 'validation loss', val_loss, iteration)
