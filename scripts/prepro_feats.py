@@ -40,11 +40,12 @@ import torch
 import torchvision.models as models
 import skimage.io
 from skimage.transform import resize
+from PIL import Image
 
 from torchvision import transforms as trn
 preprocess = trn.Compose([
-        #trn.ToTensor(),
-        #trn.Resize((256, 256)),
+        trn.Resize((224, 224)),
+        trn.ToTensor(),
         trn.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 ])
 
@@ -92,6 +93,7 @@ def main(params):
 
   for i,img in enumerate(imgs):
     # load the image
+    ''' skimage
     I = skimage.io.imread(
             os.path.join(
                 params['images_root'], 
@@ -105,7 +107,14 @@ def main(params):
     I = resize(I, (224, 224, 3), anti_aliasing=True)
     I = I.astype('float32')/255.0
     I = torch.from_numpy(I.transpose([2,0,1])).cuda()
-    I = preprocess(I)
+    '''
+    I = Image.open(
+            os.path.join(
+                params['images_root'], 
+                img['filepath'], 
+                img['filename'])
+            ).convert('RGB')
+    I = preprocess(I).cuda()
     with torch.no_grad():
         tmp_fc, tmp_att = my_resnet(
                 I, 
