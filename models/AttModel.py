@@ -337,7 +337,7 @@ class myAttModel(CaptionModel):
         # embed fc and att feats
         fc_feats = self.fc_embed(fc_feats)
         # att_feats = pack_wrapper(self.att_embed, att_feats, att_masks)
-        att_feats = self.att_embed(att_feats)
+        att_feats = self.att_embed(torch.gt(att_feats, 0))
 
         # Project the attention feats first to reduce memory and computation comsumptions.
         # p_att_feats = self.ctx2att(att_feats)

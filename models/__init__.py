@@ -14,7 +14,6 @@ from .FCModel import FCModel
 from .OldModel import ShowAttendTellModel, AllImgModel
 # from .Att2inModel import Att2inModel
 from .AttModel import *
-from .mcbTopDown import MCBTopDownModel
 
 def setup(opt):
     if opt.caption_model == 'fc':
