@@ -91,7 +91,7 @@ class FCModel(CaptionModel):
         self.ss_prob = 0.0 # Schedule sampling probability
 
         self.img_embed = nn.Linear(self.fc_feat_size, self.input_encoding_size)
-        self.core = MCBLSTMCore(opt)
+        self.core = LSTMCore(opt)
         self.embed = nn.Embedding(self.vocab_size + 1, self.input_encoding_size)
         self.logit = nn.Linear(self.rnn_size, self.vocab_size + 1)
 
