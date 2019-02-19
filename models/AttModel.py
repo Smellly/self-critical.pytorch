@@ -283,6 +283,9 @@ class myAttModel(CaptionModel):
         self.fc_embed = nn.Sequential(nn.Linear(self.fc_feat_size, self.rnn_size),
                                     nn.ReLU(),
                                     nn.Dropout(self.drop_prob_lm))
+        self.att_embed = nn.Sequential(nn.Linear(self.fc_feat_size, self.rnn_size),
+                                    nn.ReLU(),
+                                    nn.Dropout(self.drop_prob_lm))
         if self.use_ln:
             print('Using LayerNorm')
 
@@ -313,7 +316,7 @@ class myAttModel(CaptionModel):
         else:
             self.logit = [[nn.Linear(self.rnn_size, self.rnn_size), nn.ReLU(), nn.Dropout(0.5)] for _ in range(opt.logit_layers - 1)]
             self.logit = nn.Sequential(*(reduce(lambda x,y:x+y, self.logit) + [nn.Linear(self.rnn_size, self.vocab_size + 1)]))
-        self.ctx2att = nn.Linear(self.rnn_size, self.att_hid_size)
+        # self.ctx2att = nn.Linear(self.rnn_size, self.att_hid_size)
 
     def init_hidden(self, bsz):
         weight = next(self.parameters())
@@ -334,6 +337,7 @@ class myAttModel(CaptionModel):
         # embed fc and att feats
         fc_feats = self.fc_embed(fc_feats)
         # att_feats = pack_wrapper(self.att_embed, att_feats, att_masks)
+        att_feats = self.att_embed(att_feats)
 
         # Project the attention feats first to reduce memory and computation comsumptions.
         # p_att_feats = self.ctx2att(att_feats)
@@ -404,16 +408,18 @@ class myAttModel(CaptionModel):
             state = self.init_hidden(beam_size)
             tmp_fc_feats = p_fc_feats[k:k+1].expand(beam_size, p_fc_feats.size(1))
             tmp_att_feats = p_att_feats[k:k+1].expand(*((beam_size,)+p_att_feats.size()[1:])).contiguous()
-            tmp_p_att_feats = pp_att_feats[k:k+1].expand(*((beam_size,)+pp_att_feats.size()[1:])).contiguous()
+            # tmp_p_att_feats = pp_att_feats[k:k+1].expand(*((beam_size,)+pp_att_feats.size()[1:])).contiguous()
             tmp_att_masks = p_att_masks[k:k+1].expand(*((beam_size,)+p_att_masks.size()[1:])).contiguous() if att_masks is not None else None
 
             for t in range(1):
                 if t == 0: # input <bos>
                     it = fc_feats.new_zeros([beam_size], dtype=torch.long)
 
-                logprobs, state = self.get_logprobs_state(it, tmp_fc_feats, tmp_att_feats, tmp_p_att_feats, tmp_att_masks, state)
+                # logprobs, state = self.get_logprobs_state(it, tmp_fc_feats, tmp_att_feats, tmp_p_att_feats, tmp_att_masks, state)
+                logprobs, state = self.get_logprobs_state(it, tmp_fc_feats, tmp_att_feats, tmp_att_masks, state)
 
-            self.done_beams[k] = self.beam_search(state, logprobs, tmp_fc_feats, tmp_att_feats, tmp_p_att_feats, tmp_att_masks, opt=opt)
+            # self.done_beams[k] = self.beam_search(state, logprobs, tmp_fc_feats, tmp_att_feats, tmp_p_att_feats, tmp_att_masks, opt=opt)
+            self.done_beams[k] = self.beam_search(state, logprobs, tmp_fc_feats, tmp_att_feats, tmp_att_masks, opt=opt)
             seq[:, k] = self.done_beams[k][0]['seq'] # the first beam has highest cumulative score
             seqLogprobs[:, k] = self.done_beams[k][0]['logps']
         # return the samples and their log likelihoods
@@ -431,7 +437,7 @@ class myAttModel(CaptionModel):
         batch_size = fc_feats.size(0)
         state = self.init_hidden(batch_size)
 
-        p_fc_feats, p_att_feats, pp_att_feats, p_att_masks = self._prepare_feature(fc_feats, att_feats, att_masks)
+        p_fc_feats, p_att_feats, p_att_masks = self._prepare_feature(fc_feats, att_feats, att_masks)
 
         seq = fc_feats.new_zeros((batch_size, self.seq_length), dtype=torch.long)
         seqLogprobs = fc_feats.new_zeros(batch_size, self.seq_length)
@@ -439,7 +445,8 @@ class myAttModel(CaptionModel):
             if t == 0: # input <bos>
                 it = fc_feats.new_zeros(batch_size, dtype=torch.long)
 
-            logprobs, state = self.get_logprobs_state(it, p_fc_feats, p_att_feats, pp_att_feats, p_att_masks, state)
+            # logprobs, state = self.get_logprobs_state(it, p_fc_feats, p_att_feats, pp_att_feats, p_att_masks, state)
+            logprobs, state = self.get_logprobs_state(it, p_fc_feats, p_att_feats, p_att_masks, state)
             
             if decoding_constraint and t > 0:
                 tmp = logprobs.new_zeros(logprobs.size())
@@ -685,6 +692,7 @@ class myTopDownCore(nn.Module):
     # def forward(self, xt, fc_feats, att_feats, _, state, att_masks=None):
         prev_h = state[0][-1]
 
+        # print('fc_feats:', fc_feats.shape) (500, 1000)
         # att_lstm_input = self.layernorm(torch.cat([prev_h, fc_feats, xt], 1))
         att_lstm_input = torch.cat([prev_h, fc_feats, xt], 1)
 
@@ -693,12 +701,12 @@ class myTopDownCore(nn.Module):
         # print('p_att_feats:', p_att_feats.shape) # (500, 1, 512)
         # print('att_feats:', att_feats.shape) 
         # att = self.attention(h_att, att_feats, p_att_feats, att_masks)
-        # print('att:', att.shape) # (500, 1000)
         # print('att_feats:', att_feats.squeeze().shape) 
         # (500, 1, 1000) -> (500, 1000)
         # print('h_att:', h_att.shape) (500, 1000)
         # p_att_feats.detach_()
         att = att_feats.squeeze()
+        # print('att:', att.shape) # (500, 1000)
         lang_lstm_input = torch.cat([att, h_att], 1)
 
         h_lang, c_lang = self.lang_lstm(lang_lstm_input, (state[0][1], state[1][1]))
@@ -941,7 +949,7 @@ class TopDownModel(AttModel):
         self.core = TopDownCore(opt)
         # self.core = myTopDownCore(opt)
 
-class myTopDownModel(AttModel):
+class myTopDownModel(myAttModel):
     def __init__(self, opt):
         super(myTopDownModel, self).__init__(opt)
         self.num_layers = 2
