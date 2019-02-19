@@ -38,6 +38,9 @@ def setup(opt):
     # Top-down attention model
     elif opt.caption_model == 'topdown':
         model = TopDownModel(opt)
+    # modified topdown
+    elif opt.caption_model == 'mytopdown':
+        model = myTopDownModel(opt)
     # StackAtt
     elif opt.caption_model == 'stackatt':
         model = StackAttModel(opt)

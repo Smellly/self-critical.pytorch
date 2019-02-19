@@ -24,7 +24,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--model', type=str, default='',
                 help='path to model to evaluate')
 parser.add_argument('--cnn_model', type=str,  default='resnet101',
-                help='vConcept, resnet101, resnet152')
+                help='vConcept101, resnet101, resnet152')
 parser.add_argument('--infos_path', type=str, default='',
                 help='path to infos to evaluate')
 # Basic options
@@ -109,6 +109,7 @@ for k in vars(infos['opt']).keys():
     if k not in ignore:
         if k in vars(opt):
             assert vars(opt)[k] == vars(infos['opt'])[k], k + ' option not consistent'
+            # pass
         else:
             vars(opt).update({k: vars(infos['opt'])[k]}) # copy over options from model
 

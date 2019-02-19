@@ -10,11 +10,13 @@ import random
 import torch
 import skimage
 import skimage.io
+from PIL import Image
 import scipy.misc
 
 from torchvision import transforms as trn
 preprocess = trn.Compose([
-        #trn.ToTensor(),
+        trn.Resize((224, 224)),
+        trn.ToTensor(),
         trn.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 ])
 
@@ -101,6 +103,7 @@ class DataLoaderRaw():
                 # wrap back around
             self.iterator = ri_next
 
+            ''' skimage
             img = skimage.io.imread(self.files[ri])
 
             if len(img.shape) == 2:
@@ -109,7 +112,9 @@ class DataLoaderRaw():
 
             img = img.astype('float32')/255.0
             img = torch.from_numpy(img.transpose([2,0,1])).cuda()
-            img = preprocess(img)
+            ''' 
+            img = Image.open(self.files[ri])
+            img = preprocess(img).cuda()
             with torch.no_grad():
                 tmp_fc, tmp_att = self.my_resnet(img)
 

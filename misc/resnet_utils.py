@@ -29,11 +29,11 @@ class myResnet(nn.Module):
         # print(x.shape)
 
         fc = x.mean(3).mean(2).squeeze() # 2048
-        # print(fc.shape)
-
-        # visual concept
-        vc = self.resnet.fc(fc) # 4267
-        # print(vc.shape)
+        # fc_ori = self.resnet.avgpool(x).view(x.size(0), -1).squeeze()
+        # print(fc.shape, fc_ori.shape)
+        # print(fc[1234:1254])
+        # print(fc_ori[1234:1254])
+        # print(torch.equal(fc, fc_ori))
 
         att = F.adaptive_avg_pool2d(
                 x,
@@ -44,5 +44,8 @@ class myResnet(nn.Module):
         if not visualConceptReturn:
             return fc, att
         else:
+            # visual concept
+            # print(vc.shape)
+            vc = self.resnet.fc(fc) # 4267
             return fc, vc
 
