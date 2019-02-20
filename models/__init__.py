@@ -40,6 +40,9 @@ def setup(opt):
     # modified topdown
     elif opt.caption_model == 'mytopdown':
         model = myTopDownModel(opt)
+    # modified sceneAttModel
+    elif opt.caption_model == 'scenetopdown':
+        model = SceneTopDownModel(opt)
     # StackAtt
     elif opt.caption_model == 'stackatt':
         model = StackAttModel(opt)

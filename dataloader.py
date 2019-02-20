@@ -34,6 +34,7 @@ class DataLoader(data.Dataset):
         self.seq_per_img = opt.seq_per_img
         
         # feature related options
+        self.use_scene = getattr(opt, 'use_scene', False)
         self.use_att = getattr(opt, 'use_att', True)
         self.use_box = getattr(opt, 'use_box', 0)
         self.norm_att_feat = getattr(opt, 'norm_att_feat', 0)
@@ -53,6 +54,7 @@ class DataLoader(data.Dataset):
         self.input_fc_dir = self.opt.input_fc_dir
         self.input_att_dir = self.opt.input_att_dir
         self.input_box_dir = self.opt.input_box_dir
+        self.input_scene_dir = self.opt.input_scene_dir
 
         # load in the sequence data
         seq_size = self.h5_label_file['labels'].shape
@@ -124,6 +126,7 @@ class DataLoader(data.Dataset):
         # np.ndarray(
         #   (batch_size * seq_per_img, 14, 14, self.opt.att_feat_size), dtype = 'float32')
         att_batch = [] 
+        scene_batch = []
         label_batch = np.zeros(
                 [batch_size * seq_per_img, self.seq_length + 2], dtype = 'int')
         mask_batch = np.zeros(
@@ -217,8 +220,15 @@ class DataLoader(data.Dataset):
         """This function returns a tuple that is further passed to collate_fn
         """
         ix = index #self.split_ix[index]
+
+        fc_feat = np.load(
+                    os.path.join(
+                        self.input_fc_dir, 
+                        str(self.info['images'][ix]['id']) + '.npy'))
+
         if self.use_att:
-            att_feat = np.load(os.path.join(self.input_att_dir, str(self.info['images'][ix]['id']) + '.npz'))['feat']
+            att_feat = np.load(
+                    os.path.join(self.input_att_dir, str(self.info['images'][ix]['id']) + '.npz'))['feat']
             # Reshape to K x C
             att_feat = att_feat.reshape(-1, att_feat.shape[-1])
             if self.norm_att_feat:
@@ -236,7 +246,19 @@ class DataLoader(data.Dataset):
                 att_feat = np.stack(sorted(att_feat, key=lambda x:x[-1], reverse=True))
         else:
             att_feat = np.zeros((1,1,1))
-        return (np.load(os.path.join(self.input_fc_dir, str(self.info['images'][ix]['id']) + '.npy')),
+
+        if self.use_scene:
+            scene_feat = np.load(
+                    os.path.join(
+                        self.input_scene_dir, 
+                        self.info['images'][ix]['file_path'].split('/')[-1].replace('.jpg', '.npy'))
+                    )
+            return (fc_feat,
+                    att_feat,
+                    scene_feat,
+                    ix)
+
+        return (fc_feat, 
                 att_feat,
                 ix)
 

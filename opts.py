@@ -13,6 +13,8 @@ def parse_opt():
                     help='path to the directory containing the preprocessed att feats')
     parser.add_argument('--input_box_dir', type=str, default='data/cocotalk_box',
                     help='path to the directory containing the boxes of att feats')
+    parser.add_argument('--input_scene_dir', type=str, default='data/cocotalk_fc',
+                    help='path to the directory containing the preprocessed scene feats')
     parser.add_argument('--input_label_h5', type=str, default='data/coco_label.h5',
                     help='path to the h5file containing the preprocessed dataset')
     parser.add_argument('--start_from', type=str, default=None,
@@ -56,12 +58,16 @@ def parse_opt():
                           if 2 then do bn both in the beginning and the end of att_embed')
 
     # feature manipulation
+    parser.add_argument('--use_att', type=int, default=1,
+                    help='If use att features')
     parser.add_argument('--norm_att_feat', type=int, default=0,
                     help='If normalize attention features')
     parser.add_argument('--use_box', type=int, default=0,
                     help='If use box features')
     parser.add_argument('--norm_box_feat', type=int, default=0,
                     help='If use box, do we normalize box feature')
+    parser.add_argument('--use_scene', type=int, default=0,
+                    help='If use scene features')
 
     # Optimization: General
     parser.add_argument('--max_epochs', type=int, default=-1,

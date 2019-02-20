@@ -260,7 +260,7 @@ class AttModel(CaptionModel):
 
 class SceneAttModel(CaptionModel):
     def __init__(self, opt):
-        super(AttModel, self).__init__()
+        super(SceneAttModel, self).__init__()
         self.vocab_size = opt.vocab_size
         self.input_encoding_size = opt.input_encoding_size
         #self.rnn_type = opt.rnn_type
@@ -348,16 +348,17 @@ class SceneAttModel(CaptionModel):
         # Project the attention feats first to reduce memory and computation comsumptions.
         p_att_feats = self.ctx2att(att_feats)
 
-        return fc_feats, att_feats, p_att_feats, att_masks
+        return fc_feats, att_feats, p_att_feats, att_masks, scene_feats
 
-    def _forward(self, fc_feats, att_feats, seq, att_masks=None):
+    def _forward(self, fc_feats, att_feats, scene_feats, seq, att_masks=None):
         batch_size = fc_feats.size(0)
         state = self.init_hidden(batch_size)
 
         outputs = fc_feats.new_zeros(batch_size, seq.size(1) - 1, self.vocab_size+1)
 
         # Prepare the features
-        p_fc_feats, p_att_feats, pp_att_feats, p_att_masks = self._prepare_feature(fc_feats, att_feats, att_masks)
+        p_fc_feats, p_att_feats, pp_att_feats, p_att_masks, scene_feats = \
+                self._prepare_feature(fc_feats, att_feats, att_masks)
         # pp_att_feats is used for attention, we cache it in advance to reduce computation cost
 
         for i in range(seq.size(1) - 1):
@@ -380,16 +381,29 @@ class SceneAttModel(CaptionModel):
             if i >= 1 and seq[:, i].sum() == 0:
                 break
 
-            output, state = self.get_logprobs_state(it, p_fc_feats, p_att_feats, pp_att_feats, p_att_masks, state)
+            output, state = self.get_logprobs_state(
+                    it, 
+                    p_fc_feats, 
+                    p_att_feats, pp_att_feats, p_att_masks,
+                    scene_feats, 
+                    state)
             outputs[:, i] = output
 
         return outputs
 
-    def get_logprobs_state(self, it, fc_feats, att_feats, p_att_feats, att_masks, state):
-        # 'it' contains a word index
-        xt = self.v_embed(it)
+    def get_logprobs_state(
+            self, 
+            it, 
+            fc_feats, 
+            att_feats, p_att_feats, att_masks, 
+            scene_feats, 
+            state):
 
-        output, state = self.core(xt, fc_feats, att_feats, p_att_feats, state, att_masks)
+        # 'it' contains a word index
+        xt = self.u_embed(scene_feats * self.v_embed(it))
+
+        output, state = self.core(
+                xt, fc_feats, att_feats, p_att_feats, state, att_masks)
         logprobs = F.log_softmax(self.logit(output), dim=1)
 
         return logprobs, state
@@ -1169,7 +1183,12 @@ class TopDownModel(AttModel):
         super(TopDownModel, self).__init__(opt)
         self.num_layers = 2
         self.core = TopDownCore(opt)
-        # self.core = myTopDownCore(opt)
+
+class SceneTopDownModel(SceneAttModel):
+    def __init__(self, opt):
+        super(SceneTopDownModel, self).__init__(opt)
+        self.num_layers = 2
+        self.core = TopDownCore(opt)
 
 class myTopDownModel(myAttModel):
     def __init__(self, opt):

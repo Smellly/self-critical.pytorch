@@ -47,5 +47,6 @@ class myResnet(nn.Module):
             # visual concept
             # print(vc.shape)
             vc = self.resnet.fc(fc) # 4267
+            return vc, att
             return fc, vc
 
