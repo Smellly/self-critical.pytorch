@@ -42,6 +42,8 @@ def parse_opt():
                     help='2048 for resnet, 4096 for vgg')
     parser.add_argument('--att_feat_size', type=int, default=2048,
                     help='2048 for resnet, 512 for vgg')
+    parser.add_argument('--scene_feat_size', type=int, default=18,
+                    help='18 is default')
     parser.add_argument('--logit_layers', type=int, default=1,
                     help='number of layers in the RNN')
 
