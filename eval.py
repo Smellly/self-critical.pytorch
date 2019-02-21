@@ -68,6 +68,8 @@ parser.add_argument('--input_att_dir', type=str, default='',
                 help='path to the h5file containing the preprocessed dataset')
 parser.add_argument('--input_box_dir', type=str, default='',
                 help='path to the h5file containing the preprocessed dataset')
+parser.add_argument('--input_scene_dir', type=str, default='data/cocotalk_fc',
+                help='path to the directory containing the preprocessed scene feats')
 parser.add_argument('--input_label_h5', type=str, default='',
                 help='path to the h5file containing the preprocessed dataset')
 parser.add_argument('--input_json', type=str, default='', 

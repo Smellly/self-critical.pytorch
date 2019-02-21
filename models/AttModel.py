@@ -279,11 +279,11 @@ class SceneAttModel(CaptionModel):
         self.ss_prob = 0.0 # Schedule sampling probability
 
         self.u_embed = nn.Sequential(
-                                nn.Linear(self.input_encoding_size, self.scene_feat_size),
+                                nn.Linear(self.scene_feat_size, self.input_encoding_size),
                                 nn.ReLU(),
                                 nn.Dropout(self.drop_prob_lm))
         self.v_embed = nn.Sequential(
-                                nn.Embedding(self.scene_feat_size, self.vocab_size + 1)
+                                nn.Embedding(self.vocab_size + 1, self.scene_feat_size)
                                 )
 
         self.fc_embed = nn.Sequential(
@@ -342,8 +342,7 @@ class SceneAttModel(CaptionModel):
         fc_feats = self.fc_embed(fc_feats)
         att_feats = pack_wrapper(self.att_embed, att_feats, att_masks)
         # embed scene feats into diag
-        scene_feats = torch.eye(self.scene_feat_size).double \
-                * torch.from_numpy(scene_feats)
+        scene_feats = torch.diag_embed(scene_feats).float()
 
         # Project the attention feats first to reduce memory and computation comsumptions.
         p_att_feats = self.ctx2att(att_feats)
@@ -358,7 +357,7 @@ class SceneAttModel(CaptionModel):
 
         # Prepare the features
         p_fc_feats, p_att_feats, pp_att_feats, p_att_masks, scene_feats = \
-                self._prepare_feature(fc_feats, att_feats, att_masks)
+                self._prepare_feature(fc_feats, att_feats, scene_feats, att_masks)
         # pp_att_feats is used for attention, we cache it in advance to reduce computation cost
 
         for i in range(seq.size(1) - 1):
@@ -400,8 +399,23 @@ class SceneAttModel(CaptionModel):
             state):
 
         # 'it' contains a word index
-        xt = self.u_embed(scene_feats * self.v_embed(it))
-
+        '''
+        print('get logProbs state:')
+        print(scene_feats.shape)        # (500, 18, 18) torch.float64
+        print(it.shape)                 # (500,)
+        print(torch.unsqueeze(self.v_embed(it), -1).shape)   # (500, 18, 1) torch.float32
+        print(torch.bmm(
+                scene_feats, 
+                torch.unsqueeze(self.v_embed(it), -1)).shape) # (500, 18, 1)
+        print(self.u_embed(
+                torch.bmm(
+                    scene_feats, 
+                    torch.unsqueeze(self.v_embed(it), -1)).squeeze()).shape) # (500, 1000)
+        '''
+        xt = self.u_embed(
+                torch.bmm(
+                    scene_feats,
+                    torch.unsqueeze(self.v_embed(it), -1)).squeeze())
         output, state = self.core(
                 xt, fc_feats, att_feats, p_att_feats, state, att_masks)
         logprobs = F.log_softmax(self.logit(output), dim=1)
