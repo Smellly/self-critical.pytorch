@@ -391,12 +391,12 @@ class SceneAttModel(CaptionModel):
         return outputs
 
     def get_logprobs_state(
-            self, 
-            it, 
-            fc_feats, 
-            att_feats, p_att_feats, att_masks, 
-            scene_feats, 
-            state):
+        self, 
+        it, 
+        fc_feats, 
+        att_feats, p_att_feats, att_masks, 
+        scene_feats, 
+        state):
 
         # 'it' contains a word index
         '''
@@ -422,13 +422,17 @@ class SceneAttModel(CaptionModel):
 
         return logprobs, state
 
-    def _sample_beam(self, fc_feats, att_feats, att_masks=None, opt={}):
+    def _sample_beam(self, fc_feats, att_feats, scene_feats, att_masks=None, opt={}):
         beam_size = opt.get('beam_size', 10)
         batch_size = fc_feats.size(0)
 
-        p_fc_feats, p_att_feats, pp_att_feats, p_att_masks = self._prepare_feature(fc_feats, att_feats, att_masks)
+        p_fc_feats, p_att_feats, pp_att_feats, p_att_masks, p_scene_feats = \
+                self._prepare_feature(fc_feats, att_feats, scene_feats, att_masks)
 
-        assert beam_size <= self.vocab_size + 1, 'lets assume this for now, otherwise this corner case causes a few headaches down the road. can be dealt with in future if needed'
+        assert beam_size <= self.vocab_size + 1, \
+                'lets assume this for now, \
+                otherwise this corner case causes a few headaches down the road. \
+                can be dealt with in future if needed'
         seq = torch.LongTensor(self.seq_length, batch_size).zero_()
         seqLogprobs = torch.FloatTensor(self.seq_length, batch_size)
         # lets process every image independently for now, for simplicity
@@ -453,19 +457,19 @@ class SceneAttModel(CaptionModel):
         # return the samples and their log likelihoods
         return seq.transpose(0, 1), seqLogprobs.transpose(0, 1)
 
-    def _sample(self, fc_feats, att_feats, att_masks=None, opt={}):
-
+    def _sample(self, fc_feats, att_feats, scene_feats, att_masks=None, opt={}):
         sample_max = opt.get('sample_max', 1)
         beam_size = opt.get('beam_size', 1)
         temperature = opt.get('temperature', 1.0)
         decoding_constraint = opt.get('decoding_constraint', 0)
         if beam_size > 1:
-            return self._sample_beam(fc_feats, att_feats, att_masks, opt)
+            return self._sample_beam(fc_feats, att_feats, scene_feats, att_masks, opt)
 
         batch_size = fc_feats.size(0)
         state = self.init_hidden(batch_size)
 
-        p_fc_feats, p_att_feats, pp_att_feats, p_att_masks = self._prepare_feature(fc_feats, att_feats, att_masks)
+        p_fc_feats, p_att_feats, pp_att_feats, p_att_masks, p_scene_feats = \
+                self._prepare_feature(fc_feats, att_feats, scene_feats, att_masks)
 
         seq = fc_feats.new_zeros((batch_size, self.seq_length), dtype=torch.long)
         seqLogprobs = fc_feats.new_zeros(batch_size, self.seq_length)
@@ -473,7 +477,12 @@ class SceneAttModel(CaptionModel):
             if t == 0: # input <bos>
                 it = fc_feats.new_zeros(batch_size, dtype=torch.long)
 
-            logprobs, state = self.get_logprobs_state(it, p_fc_feats, p_att_feats, pp_att_feats, p_att_masks, state)
+            logprobs, state = self.get_logprobs_state(
+                    it, 
+                    p_fc_feats, 
+                    p_att_feats, pp_att_feats, p_att_masks, 
+                    p_scene_feats, 
+                    state)
             
             if decoding_constraint and t > 0:
                 tmp = logprobs.new_zeros(logprobs.size())
