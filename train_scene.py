@@ -17,7 +17,7 @@ from six.moves import cPickle
 import opts
 import models
 from dataloader_scene import *
-import eval_utils
+import eval_utils_scene as eval_utils
 import misc.utils as utils
 from misc.rewards import init_scorer, get_self_critical_reward
 
