@@ -342,7 +342,7 @@ class SceneAttModel(CaptionModel):
         fc_feats = self.fc_embed(fc_feats)
         att_feats = pack_wrapper(self.att_embed, att_feats, att_masks)
         # embed scene feats into diag
-        scene_feats = torch.diag_embed(scene_feats).float()
+        scene_feats = torch.diag_embed(torch.gt(scene_feats, 0)).float()
 
         # Project the attention feats first to reduce memory and computation comsumptions.
         p_att_feats = self.ctx2att(att_feats)
@@ -440,18 +440,42 @@ class SceneAttModel(CaptionModel):
         self.done_beams = [[] for _ in range(batch_size)]
         for k in range(batch_size):
             state = self.init_hidden(beam_size)
-            tmp_fc_feats = p_fc_feats[k:k+1].expand(beam_size, p_fc_feats.size(1))
-            tmp_att_feats = p_att_feats[k:k+1].expand(*((beam_size,)+p_att_feats.size()[1:])).contiguous()
-            tmp_p_att_feats = pp_att_feats[k:k+1].expand(*((beam_size,)+pp_att_feats.size()[1:])).contiguous()
-            tmp_att_masks = p_att_masks[k:k+1].expand(*((beam_size,)+p_att_masks.size()[1:])).contiguous() if att_masks is not None else None
+            tmp_fc_feats = p_fc_feats[k:k+1].expand(
+                    beam_size, p_fc_feats.size(1))
+            # print(p_fc_feats[k:k+1].shape) # (1, 1000)
+            # print(tmp_fc_feats.shape) # (2, 1000)
+            tmp_att_feats = p_att_feats[k:k+1].expand(
+                    *((beam_size,)+p_att_feats.size()[1:])).contiguous()
+            # print(p_att_feats[k:k+1].shape) # (1, 196, 1000)
+            # print(tmp_att_feats.shape) # (2, 196, 1000) 
+            tmp_p_att_feats = pp_att_feats[k:k+1].expand(
+                    *((beam_size,)+pp_att_feats.size()[1:])).contiguous()
+            tmp_att_masks = p_att_masks[k:k+1].expand(
+                    *((beam_size,)+p_att_masks.size()[1:])).contiguous() if att_masks is not None else None
+            # print(p_scene_feats[k:k+1].shape) # (1, 18, 18)
+            # print(p_scene_feats.size())
+            # print(p_scene_feats.size(1)) # 18
+            tmp_scene_feats = p_scene_feats[k:k+1].expand(
+                    *((beam_size,)+p_scene_feats.size()[1:])).contiguous()
 
             for t in range(1):
                 if t == 0: # input <bos>
                     it = fc_feats.new_zeros([beam_size], dtype=torch.long)
 
-                logprobs, state = self.get_logprobs_state(it, tmp_fc_feats, tmp_att_feats, tmp_p_att_feats, tmp_att_masks, state)
+                logprobs, state = self.get_logprobs_state(
+                        it, 
+                        tmp_fc_feats, 
+                        tmp_att_feats, tmp_p_att_feats, tmp_att_masks, 
+                        tmp_scene_feats,
+                        state)
 
-            self.done_beams[k] = self.beam_search(state, logprobs, tmp_fc_feats, tmp_att_feats, tmp_p_att_feats, tmp_att_masks, opt=opt)
+            self.done_beams[k] = self.beam_search(
+                    state, 
+                    logprobs, 
+                    tmp_fc_feats, 
+                    tmp_att_feats, tmp_p_att_feats, tmp_att_masks, 
+                    tmp_scene_feats,
+                    opt=opt)
             seq[:, k] = self.done_beams[k][0]['seq'] # the first beam has highest cumulative score
             seqLogprobs[:, k] = self.done_beams[k][0]['logps']
         # return the samples and their log likelihoods
