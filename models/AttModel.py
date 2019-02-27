@@ -71,27 +71,71 @@ class AttModel(CaptionModel):
                                     nn.Dropout(self.drop_prob_lm))
         if self.use_ln:
             print('Using LayerNorm')
-
-            self.att_embed = nn.Sequential(*(
-                                        ((nn.LayerNorm(self.att_feat_size),) if self.use_ln else ())+
-                                        (nn.Linear(self.att_feat_size, self.rnn_size),
+            self.u_embed = nn.Sequential(*(
+                                    ((nn.LayerNorm(self.att_feat_size),))+
+                                    (
+                                        nn.Linear(self.scene_feat_size, self.input_encoding_size),
                                         nn.ReLU(),
                                         nn.Dropout(self.drop_prob_lm))+
-                                        ((nn.LayerNorm(self.rnn_size),) if self.use_ln==2 else ())))
+                                    ((nn.LayerNorm(self.att_feat_size),) )))
+            self.v_embed = nn.Sequential(
+                                    nn.Embedding(self.vocab_size + 1, self.scene_feat_size)
+                                    )
+            self.fc_embed = nn.Sequential(*(
+                                    ((nn.LayerNorm(self.fc_feat_size),))+
+                                    (
+                                        nn.Linear(self.fc_feat_size, self.rnn_size),
+                                        nn.ReLU(),
+                                        nn.Dropout(self.drop_prob_lm))+
+                                    ((nn.LayerNorm(self.fc_feat_size),))))
+            self.att_embed = nn.Sequential(*(
+                                        ((nn.LayerNorm(self.att_feat_size),))+
+                                        (
+                                            nn.Linear(self.att_feat_size, self.rnn_size),
+                                            nn.ReLU(),
+                                            nn.Dropout(self.drop_prob_lm))+
+                                        ((nn.LayerNorm(self.rnn_size),) )))
         if not self.use_ln and self.use_bn:
             print('Using BatchNorm')
+            self.u_embed = nn.Sequential(*(
+                                    ((nn.BatchNorm1d(self.att_feat_size),))+
+                                    (
+                                        nn.Linear(self.scene_feat_size, self.input_encoding_size),
+                                        nn.ReLU(),
+                                        nn.Dropout(self.drop_prob_lm))+
+                                    ((nn.BatchNorm1d(self.att_feat_size),) )))
+            self.v_embed = nn.Sequential(
+                                    nn.Embedding(self.vocab_size + 1, self.scene_feat_size)
+                                    )
+            self.fc_embed = nn.Sequential(*(
+                                    ((nn.BatchNorm1d(self.fc_feat_size),))+
+                                    (
+                                        nn.Linear(self.fc_feat_size, self.rnn_size),
+                                        nn.ReLU(),
+                                        nn.Dropout(self.drop_prob_lm))+
+                                    ((nn.BatchNorm1d(self.fc_feat_size),))))
             self.att_embed = nn.Sequential(*(
-                                        ((nn.BatchNorm1d(self.att_feat_size),) if self.use_bn else ())+
+                                        ((nn.BatchNorm1d(self.att_feat_size),) )+
                                         (nn.Linear(self.att_feat_size, self.rnn_size),
                                         nn.ReLU(),
                                         nn.Dropout(self.drop_prob_lm))+
-                                        ((nn.BatchNorm1d(self.rnn_size),) if self.use_bn==2 else ())))
-
+                                        ((nn.BatchNorm1d(self.rnn_size),) )))
         else:
             self.att_embed = nn.Sequential(*(
                                         (nn.Linear(self.att_feat_size, self.rnn_size),
                                         nn.ReLU(),
                                         nn.Dropout(self.drop_prob_lm))))
+            self.u_embed = nn.Sequential(
+                                    nn.Linear(self.scene_feat_size, self.input_encoding_size),
+                                    nn.ReLU(),
+                                    nn.Dropout(self.drop_prob_lm))
+            self.v_embed = nn.Sequential(
+                                    nn.Embedding(self.vocab_size + 1, self.scene_feat_size)
+                                    )
+            self.fc_embed = nn.Sequential(
+                                    nn.Linear(self.fc_feat_size, self.rnn_size),
+                                    nn.ReLU(),
+                                    nn.Dropout(self.drop_prob_lm))
 
         self.logit_layers = getattr(opt, 'logit_layers', 1)
         if self.logit_layers == 1:
@@ -278,41 +322,73 @@ class SceneAttModel(CaptionModel):
 
         self.ss_prob = 0.0 # Schedule sampling probability
 
-        self.u_embed = nn.Sequential(
-                                nn.Linear(self.scene_feat_size, self.input_encoding_size),
-                                nn.ReLU(),
-                                nn.Dropout(self.drop_prob_lm))
-        self.v_embed = nn.Sequential(
-                                nn.Embedding(self.vocab_size + 1, self.scene_feat_size)
-                                )
-
-        self.fc_embed = nn.Sequential(
-                                nn.Linear(self.fc_feat_size, self.rnn_size),
-                                nn.ReLU(),
-                                nn.Dropout(self.drop_prob_lm))
         if self.use_ln:
             print('Using LayerNorm')
-
-            self.att_embed = nn.Sequential(*(
-                                        ((nn.LayerNorm(self.att_feat_size),) if self.use_ln else ())+
-                                        (nn.Linear(self.att_feat_size, self.rnn_size),
+            self.u_embed = nn.Sequential(*(
+                                    ((nn.LayerNorm(self.att_feat_size),))+
+                                    (
+                                        nn.Linear(self.scene_feat_size, self.input_encoding_size),
                                         nn.ReLU(),
                                         nn.Dropout(self.drop_prob_lm))+
-                                        ((nn.LayerNorm(self.rnn_size),) if self.use_ln==2 else ())))
+                                    ((nn.LayerNorm(self.att_feat_size),) )))
+            self.v_embed = nn.Sequential(
+                                    nn.Embedding(self.vocab_size + 1, self.scene_feat_size)
+                                    )
+            self.fc_embed = nn.Sequential(*(
+                                    ((nn.LayerNorm(self.fc_feat_size),))+
+                                    (
+                                        nn.Linear(self.fc_feat_size, self.rnn_size),
+                                        nn.ReLU(),
+                                        nn.Dropout(self.drop_prob_lm))+
+                                    ((nn.LayerNorm(self.fc_feat_size),))))
+            self.att_embed = nn.Sequential(*(
+                                        ((nn.LayerNorm(self.att_feat_size),))+
+                                        (
+                                            nn.Linear(self.att_feat_size, self.rnn_size),
+                                            nn.ReLU(),
+                                            nn.Dropout(self.drop_prob_lm))+
+                                        ((nn.LayerNorm(self.rnn_size),) )))
         if not self.use_ln and self.use_bn:
             print('Using BatchNorm')
+            self.u_embed = nn.Sequential(*(
+                                    ((nn.BatchNorm1d(self.att_feat_size),))+
+                                    (
+                                        nn.Linear(self.scene_feat_size, self.input_encoding_size),
+                                        nn.ReLU(),
+                                        nn.Dropout(self.drop_prob_lm))+
+                                    ((nn.BatchNorm1d(self.att_feat_size),) )))
+            self.v_embed = nn.Sequential(
+                                    nn.Embedding(self.vocab_size + 1, self.scene_feat_size)
+                                    )
+            self.fc_embed = nn.Sequential(*(
+                                    ((nn.BatchNorm1d(self.fc_feat_size),))+
+                                    (
+                                        nn.Linear(self.fc_feat_size, self.rnn_size),
+                                        nn.ReLU(),
+                                        nn.Dropout(self.drop_prob_lm))+
+                                    ((nn.BatchNorm1d(self.fc_feat_size),))))
             self.att_embed = nn.Sequential(*(
-                                        ((nn.BatchNorm1d(self.att_feat_size),) if self.use_bn else ())+
+                                        ((nn.BatchNorm1d(self.att_feat_size),) )+
                                         (nn.Linear(self.att_feat_size, self.rnn_size),
                                         nn.ReLU(),
                                         nn.Dropout(self.drop_prob_lm))+
-                                        ((nn.BatchNorm1d(self.rnn_size),) if self.use_bn==2 else ())))
-
+                                        ((nn.BatchNorm1d(self.rnn_size),) )))
         else:
             self.att_embed = nn.Sequential(*(
                                         (nn.Linear(self.att_feat_size, self.rnn_size),
                                         nn.ReLU(),
                                         nn.Dropout(self.drop_prob_lm))))
+            self.u_embed = nn.Sequential(
+                                    nn.Linear(self.scene_feat_size, self.input_encoding_size),
+                                    nn.ReLU(),
+                                    nn.Dropout(self.drop_prob_lm))
+            self.v_embed = nn.Sequential(
+                                    nn.Embedding(self.vocab_size + 1, self.scene_feat_size)
+                                    )
+            self.fc_embed = nn.Sequential(
+                                    nn.Linear(self.fc_feat_size, self.rnn_size),
+                                    nn.ReLU(),
+                                    nn.Dropout(self.drop_prob_lm))
 
         self.logit_layers = getattr(opt, 'logit_layers', 1)
         if self.logit_layers == 1:
