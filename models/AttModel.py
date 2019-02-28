@@ -319,9 +319,9 @@ class SceneAttModel(CaptionModel):
 
         self.ss_prob = 0.0 # Schedule sampling probability
 
-        self.embed = nn.Sequential(nn.Embedding(self.vocab_size + 1, self.input_encoding_size),
-                                nn.ReLU(),
-                                nn.Dropout(self.drop_prob_lm))
+        # self.embed = nn.Sequential(nn.Embedding(self.vocab_size + 1, self.input_encoding_size),
+        #                         nn.ReLU(),
+        #                         nn.Dropout(self.drop_prob_lm))
 
         if self.use_ln:
             print('Using LayerNorm')
@@ -386,9 +386,9 @@ class SceneAttModel(CaptionModel):
                                     nn.Linear(self.scene_feat_size, self.input_encoding_size),
                                     nn.ReLU(),
                                     nn.Dropout(self.drop_prob_lm))
-            self.v_embed = nn.Sequential(
-                                    nn.Linear(self.vocab_size,
-                                        self.rnn_size))
+            self.v_embed = nn.Sequential(nn.Embedding(self.vocab_size + 1, self.input_encoding_size),
+                                    nn.ReLU(),
+                                    nn.Dropout(self.drop_prob_lm))
             self.fc_embed = nn.Sequential(
                                     nn.Linear(self.fc_feat_size, self.rnn_size),
                                     nn.ReLU(),
@@ -491,12 +491,12 @@ class SceneAttModel(CaptionModel):
                 torch.bmm(
                     scene_feats, 
                     torch.unsqueeze(self.v_embed(it), -1)).squeeze()).shape) # (500, 1000)
+        '''
+        xt = self.embed(it)
         xt = self.u_embed(
                 torch.bmm(
                     scene_feats,
                     torch.unsqueeze(self.v_embed(it), -1)).squeeze())
-        '''
-        xt = self.embed(it)
         output, state = self.core(
                 xt, fc_feats, att_feats, p_att_feats, state, att_masks)
         logprobs = F.log_softmax(self.logit(output), dim=1)
@@ -1344,12 +1344,6 @@ class SceneTopDownCore(nn.Module):
         self.att_lstm = nn.LSTMCell(opt.input_encoding_size + opt.rnn_size, opt.rnn_size) # we, fc, h^2_t-1
         self.lang_lstm = nn.LSTMCell(opt.rnn_size * 3, opt.rnn_size) # h^1_t, \hat v
         self.attention = Attention(opt)
-        self.u_embed = nn.Sequential(
-                                nn.Linear(opt.scene_feat_size, opt.input_encoding_size),
-                                nn.ReLU(),
-                                nn.Dropout(self.drop_prob_lm))
-        self.v_embed = nn.Sequential(
-                                nn.Linear(opt.rnn_size, opt.scene_feat_size))
 
     def forward(self, xt, fc_feats, att_feats, p_att_feats, scene_feats, state, att_masks=None):
         prev_h = state[0][-1]
@@ -1359,10 +1353,6 @@ class SceneTopDownCore(nn.Module):
         h_att, c_att = self.att_lstm(att_lstm_input, (state[0][0], state[1][0]))
 
         att = self.attention(h_att, att_feats, p_att_feats, att_masks)
-        h_att = self.u_embed(
-                    torch.bmm(
-                        scene_feats,
-                        torch.unsqueeze(self.v_embed(h_att), -1)).squeeze())
 
         lang_lstm_input = torch.cat([att, h_att, fc_feats], 1)
         h_lang, c_lang = self.lang_lstm(lang_lstm_input, (state[0][1], state[1][1]))
