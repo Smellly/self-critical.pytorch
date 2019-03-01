@@ -386,7 +386,8 @@ class SceneAttModel(CaptionModel):
                                     nn.Linear(self.scene_feat_size, self.input_encoding_size),
                                     nn.ReLU(),
                                     nn.Dropout(self.drop_prob_lm))
-            self.v_embed = nn.Sequential(nn.Embedding(self.vocab_size + 1, self.input_encoding_size),
+            self.v_embed = nn.Sequential(
+                                    nn.Embedding(self.vocab_size+1, self.scene_feat_size),
                                     nn.ReLU(),
                                     nn.Dropout(self.drop_prob_lm))
             self.fc_embed = nn.Sequential(
@@ -491,8 +492,8 @@ class SceneAttModel(CaptionModel):
                 torch.bmm(
                     scene_feats, 
                     torch.unsqueeze(self.v_embed(it), -1)).squeeze()).shape) # (500, 1000)
-        '''
         xt = self.embed(it)
+        '''
         xt = self.u_embed(
                 torch.bmm(
                     scene_feats,
@@ -1345,7 +1346,7 @@ class SceneTopDownCore(nn.Module):
         self.lang_lstm = nn.LSTMCell(opt.rnn_size * 3, opt.rnn_size) # h^1_t, \hat v
         self.attention = Attention(opt)
 
-    def forward(self, xt, fc_feats, att_feats, p_att_feats, scene_feats, state, att_masks=None):
+    def forward(self, xt, fc_feats, att_feats, p_att_feats, state, att_masks=None):
         prev_h = state[0][-1]
 
         # att_lstm_input = self.layernorm(torch.cat([prev_h, fc_feats, xt], 1))
@@ -1664,11 +1665,11 @@ class TopDownModel(AttModel):
         self.num_layers = 2
         self.core = TopDownCore(opt)
 
-class SceneTopDownModel(Scene2AttModel):
+class SceneTopDownModel(SceneAttModel):
     def __init__(self, opt):
         super(SceneTopDownModel, self).__init__(opt)
         self.num_layers = 2
-        self.core = Scene2TopDownCore(opt)
+        self.core = SceneTopDownCore(opt)
         # self.core = TopDownCore(opt)
 
 class myTopDownModel(myAttModel):
