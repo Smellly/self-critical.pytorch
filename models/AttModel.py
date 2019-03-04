@@ -925,7 +925,7 @@ class Scene2AttModel(CaptionModel):
 
 class Scene3AttModel(CaptionModel):
     def __init__(self, opt):
-        super(Scene2AttModel, self).__init__()
+        super(Scene3AttModel, self).__init__()
         self.vocab_size = opt.vocab_size
         self.input_encoding_size = opt.input_encoding_size
         #self.rnn_type = opt.rnn_type
@@ -1098,7 +1098,7 @@ class Scene3AttModel(CaptionModel):
         logprobs_att = F.log_softmax(self.logit(output[0]), dim=1)
         logprobs_lang = F.log_softmax(self.logit(output[1]), dim=1)
 
-        return [logprobs_att, logprobs_lang, state
+        return [logprobs_att, logprobs_lang], state
 
     def _sample_beam(self, fc_feats, att_feats, scene_feats, att_masks=None, opt={}):
         beam_size = opt.get('beam_size', 10)
@@ -1666,7 +1666,7 @@ class SceneTopDownCore(nn.Module):
 # for scene7 model
 class Scene3TopDownCore(nn.Module):
     def __init__(self, opt, use_maxout=False):
-        super(Scene2TopDownCore, self).__init__()
+        super(Scene3TopDownCore, self).__init__()
         self.drop_prob_lm = opt.drop_prob_lm
         self.att_lstm = nn.LSTMCell(opt.input_encoding_size + opt.rnn_size, opt.rnn_size) # we, fc, h^2_t-1
         self.lang_lstm = nn.LSTMCell(opt.rnn_size * 3, opt.rnn_size) # h^1_t, \hat v
@@ -2130,12 +2130,22 @@ class TopDownModel(AttModel):
         self.num_layers = 2
         self.core = TopDownCore(opt)
 
+'''
 class SceneTopDownModel(Scene2AttModel):
     def __init__(self, opt):
         super(SceneTopDownModel, self).__init__(opt)
         self.num_layers = 2
         self.core = Scene2TopDownCore(opt)
         # self.core = TopDownCore(opt)
+'''
+
+class SceneTopDownModel(Scene3AttModel):
+    def __init__(self, opt):
+        super(SceneTopDownModel, self).__init__(opt)
+        self.num_layers = 2
+        self.core = Scene3TopDownCore(opt)
+        # self.core = TopDownCore(opt)
+
 
 class myTopDownModel(myAttModel):
     def __init__(self, opt):

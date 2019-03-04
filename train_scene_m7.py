@@ -86,7 +86,7 @@ def train(opt):
     # Assure in training mode
     dp_model.train()
 
-    crit = utils.LanguageModelCriterion()
+    crit = utils.Scene7LanguageModelCriterion()
     rl_crit = utils.RewardCriterion()
 
     optimizer = utils.build_optimizer(model.parameters(), opt)
@@ -145,7 +145,7 @@ def train(opt):
         optimizer.zero_grad()
         if not sc_flag:
             # [loss_att, loss_lang]
-            losses = crit(
+            loss = crit(
                     dp_model(
                         fc_feats, 
                         att_feats, 
@@ -154,8 +154,6 @@ def train(opt):
                         att_masks), 
                     labels[:,1:], 
                     masks[:,1:])
-            gamma = 1
-            loss = losses[0] + gamma*losses[1]
         else:
             gen_result, sample_logprobs = dp_model(
                     fc_feats, 

@@ -65,6 +65,25 @@ class LanguageModelCriterion(nn.Module):
 
         return output
 
+class Scene7LanguageModelCriterion(nn.Module):
+    def __init__(self):
+        super(Scene7LanguageModelCriterion, self).__init__()
+
+    def forward(self, input, target, mask):
+        # truncate to the same size
+
+        mask =  mask[:, :input[0].size(1)]
+
+        target_att = target[:, :input[0].size(1)]
+        output_att = -input[0].gather(2, target.unsqueeze(2)).squeeze(2) * mask
+
+        target_lang = target[:, :input[1].size(1)]
+        output_lang = -input[0].gather(2, target.unsqueeze(2)).squeeze(2) * mask
+
+        output = torch.sum(output_att) / torch.sum(mask) + torch.sum(output_lang) / torch.sum(mask)
+
+        return output
+
 def set_lr(optimizer, lr):
     for group in optimizer.param_groups:
         group['lr'] = lr
