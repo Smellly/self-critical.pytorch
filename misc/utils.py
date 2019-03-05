@@ -78,9 +78,10 @@ class Scene7LanguageModelCriterion(nn.Module):
         output_att = -input[0].gather(2, target.unsqueeze(2)).squeeze(2) * mask
 
         target_lang = target[:, :input[1].size(1)]
-        output_lang = -input[0].gather(2, target.unsqueeze(2)).squeeze(2) * mask
+        output_lang = -input[1].gather(2, target.unsqueeze(2)).squeeze(2) * mask
 
         output = torch.sum(output_att) / torch.sum(mask) + torch.sum(output_lang) / torch.sum(mask)
+        # output = (torch.sum(output_att) + torch.sum(output_lang)) / torch.sum(mask)
 
         return output
 

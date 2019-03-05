@@ -625,7 +625,7 @@ class SceneAttModel(CaptionModel):
 
         return seq, seqLogprobs
 
-# for scene5 scene6
+# for scene4 scene5 scene6
 class Scene2AttModel(CaptionModel):
     def __init__(self, opt):
         super(Scene2AttModel, self).__init__()
