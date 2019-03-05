@@ -625,6 +625,7 @@ class SceneAttModel(CaptionModel):
 
         return seq, seqLogprobs
 
+# for scene5 scene6
 class Scene2AttModel(CaptionModel):
     def __init__(self, opt):
         super(Scene2AttModel, self).__init__()
@@ -923,6 +924,7 @@ class Scene2AttModel(CaptionModel):
 
         return seq, seqLogprobs
 
+# for scene7
 class Scene3AttModel(CaptionModel):
     def __init__(self, opt):
         super(Scene3AttModel, self).__init__()
@@ -952,7 +954,8 @@ class Scene3AttModel(CaptionModel):
             self.fc_embed = nn.Sequential(*(
                                     ((nn.LayerNorm(self.fc_feat_size),))+
                                     (
-                                        nn.Linear(self.fc_feat_size, self.rnn_size),
+                                        # nn.Linear(self.fc_feat_size, self.rnn_size),
+                                        nn.Linear(self.fc_feat_size, self.att_hid_size),
                                         nn.ReLU(),
                                         nn.Dropout(self.drop_prob_lm))+
                                     ((nn.LayerNorm(self.fc_feat_size),))))
@@ -1674,7 +1677,7 @@ class Scene3TopDownCore(nn.Module):
         lang_lstm_input = torch.cat([h_att, att, vc_att], 1)
         h_lang, c_lang = self.lang_lstm(lang_lstm_input, (state[0][1], state[1][1]))
 
-        output_att = F.dropout(h_lang, self.drop_prob_lm, self.training)
+        output_att = F.dropout(h_att, self.drop_prob_lm, self.training)
         output_lang = F.dropout(h_lang, self.drop_prob_lm, self.training)
         state = (torch.stack([h_att, h_lang]), torch.stack([c_att, c_lang]))
 
@@ -2115,6 +2118,7 @@ class TopDownModel(AttModel):
         self.num_layers = 2
         self.core = TopDownCore(opt)
 
+'''
 class SceneTopDownModel(Scene2AttModel):
     def __init__(self, opt):
         super(SceneTopDownModel, self).__init__(opt)
@@ -2127,7 +2131,6 @@ class SceneTopDownModel(Scene3AttModel):
         super(SceneTopDownModel, self).__init__(opt)
         self.num_layers = 2
         self.core = Scene3TopDownCore(opt)
-'''
 
 class myTopDownModel(myAttModel):
     def __init__(self, opt):
