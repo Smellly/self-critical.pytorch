@@ -1075,23 +1075,6 @@ class Scene3AttModel(CaptionModel):
         state):
 
         # 'it' contains a word index
-        '''
-        print('get logProbs state:')
-        print(scene_feats.shape)        # (500, 18, 18) torch.float64
-        print(it.shape)                 # (500,)
-        print(torch.unsqueeze(self.v_embed(it), -1).shape)   # (500, 18, 1) torch.float32
-        print(torch.bmm(
-                scene_feats, 
-                torch.unsqueeze(self.v_embed(it), -1)).shape) # (500, 18, 1)
-        print(self.u_embed(
-                torch.bmm(
-                    scene_feats, 
-                    torch.unsqueeze(self.v_embed(it), -1)).squeeze()).shape) # (500, 1000)
-        xt = self.u_embed(
-                torch.bmm(
-                    scene_feats,
-                    torch.unsqueeze(self.v_embed(it), -1)).squeeze())
-        '''
         xt = self.embed(it)
         output, state = self.core(
                 xt, fc_feats, att_feats, p_att_feats, scene_feats, state, att_masks)
@@ -1140,12 +1123,13 @@ class Scene3AttModel(CaptionModel):
                 if t == 0: # input <bos>
                     it = fc_feats.new_zeros([beam_size], dtype=torch.long)
 
-                logprobs, state = self.get_logprobs_state(
+                logprobs_list, state = self.get_logprobs_state(
                         it, 
                         tmp_fc_feats, 
                         tmp_att_feats, tmp_p_att_feats, tmp_att_masks, 
                         tmp_scene_feats,
                         state)
+                logprobs = logprobs_list[-1]
 
             self.done_beams[k] = self.beam_search(
                     state, 
@@ -1179,12 +1163,13 @@ class Scene3AttModel(CaptionModel):
             if t == 0: # input <bos>
                 it = fc_feats.new_zeros(batch_size, dtype=torch.long)
 
-            logprobs, state = self.get_logprobs_state(
+            logprobs_list, state = self.get_logprobs_state(
                     it, 
                     p_fc_feats, 
                     p_att_feats, pp_att_feats, p_att_masks, 
                     p_scene_feats, 
                     state)
+            logprobs = logprobs_list[-1]
             
             if decoding_constraint and t > 0:
                 tmp = logprobs.new_zeros(logprobs.size())
@@ -2130,13 +2115,11 @@ class TopDownModel(AttModel):
         self.num_layers = 2
         self.core = TopDownCore(opt)
 
-'''
 class SceneTopDownModel(Scene2AttModel):
     def __init__(self, opt):
         super(SceneTopDownModel, self).__init__(opt)
         self.num_layers = 2
         self.core = Scene2TopDownCore(opt)
-        # self.core = TopDownCore(opt)
 '''
 
 class SceneTopDownModel(Scene3AttModel):
@@ -2144,8 +2127,7 @@ class SceneTopDownModel(Scene3AttModel):
         super(SceneTopDownModel, self).__init__(opt)
         self.num_layers = 2
         self.core = Scene3TopDownCore(opt)
-        # self.core = TopDownCore(opt)
-
+'''
 
 class myTopDownModel(myAttModel):
     def __init__(self, opt):
