@@ -71,7 +71,6 @@ class Scene7LanguageModelCriterion(nn.Module):
 
     def forward(self, input, target, mask):
         # truncate to the same size
-
         mask =  mask[:, :input[0].size(1)]
 
         target_att = target[:, :input[0].size(1)]
@@ -80,7 +79,8 @@ class Scene7LanguageModelCriterion(nn.Module):
         target_lang = target[:, :input[1].size(1)]
         output_lang = -input[1].gather(2, target.unsqueeze(2)).squeeze(2) * mask
 
-        output = torch.sum(output_att) / torch.sum(mask) + torch.sum(output_lang) / torch.sum(mask)
+        gamma = 0.4
+        output = gamma * torch.sum(output_att) / torch.sum(mask) + (1-gamma) * torch.sum(output_lang) / torch.sum(mask)
         # output = (torch.sum(output_att) + torch.sum(output_lang)) / torch.sum(mask)
 
         return output
