@@ -31,7 +31,6 @@ class CaptionModel(nn.Module):
         return getattr(self, '_'+mode)(*args, **kwargs)
 
     def beam_search(self, init_state, init_logprobs, *args, **kwargs):
-
         # function computes the similarity score to be augmented
         def add_diversity(beam_seq_table, logprobsf, t, divm, diversity_lambda, bdash):
             local_time = t - divm
@@ -125,6 +124,8 @@ class CaptionModel(nn.Module):
             for divm in range(group_size): 
                 if t >= divm and t <= self.seq_length + divm - 1:
                     # add diversity
+                    # print(divm, type(logprobs_table[divm]))
+                    # print(logprobs_table[divm])
                     logprobsf = logprobs_table[divm].data.float()
                     # suppress previous word
                     if decoding_constraint and t-divm > 0:
@@ -170,6 +171,7 @@ class CaptionModel(nn.Module):
                     
                     it = beam_seq_table[divm][t-divm]
                     logprobs_table[divm], state_table[divm] = self.get_logprobs_state(it.cuda(), *(args[divm] + [state_table[divm]]))
+                    logprobs_table[divm] = logprobs_table[divm][-1]
 
         # all beams are sorted by their log-probabilities
         done_beams_table = [sorted(done_beams_table[i], key=lambda x: -x['p'])[:bdash] for i in range(group_size)]
