@@ -1340,25 +1340,30 @@ class Scene4AttModel(CaptionModel):
         outputs_lang = fc_feats.new_zeros(batch_size, seq.size(1) - 1, self.vocab_size+1)
 
         # Prepare the features
-        p_fc_feats, p_att_feats, pp_att_feats, p_att_masks, scene_feats = \
+        p_fc_feats, p_att_feats, pp_att_feats, p_att_masks, p_scene_feats = \
                 self._prepare_feature(fc_feats, att_feats, scene_feats, att_masks)
         # pp_att_feats is used for attention, we cache it in advance to reduce computation cost
 
         for i in range(seq.size(1)):
             if i == 0:
                 xt = self.img_embed(fc_feats)
+                # print('in:', i, seq.size(1))
+                # print(type(xt), type(p_fc_feats), type(p_att_feats),
+                #         type(pp_att_feats), type(state), type(p_att_masks))
+                # print(xt.dtype, p_fc_feats.dtype, p_att_feats.dtype,
+                #         pp_att_feats.dtype, p_att_masks.dtype)
                 output, state = self.core(
                         xt, 
                         p_fc_feats, 
                         p_att_feats, pp_att_feats, 
-                        scene_feats, 
+                        p_scene_feats, 
                         state, 
                         p_att_masks)
                 logprobs_att = F.log_softmax(self.logit(output[0]), dim=1)
                 logprobs_lang = F.log_softmax(self.logit(output[1]), dim=1)
                 output = [logprobs_att, logprobs_lang]
-
             else:
+                # print('out:', i, seq.size(1))
                 if self.training and i >= 1 and self.ss_prob > 0.0: # otherwiste no need to sample
                     sample_prob = fc_feats.new(batch_size).uniform_(0, 1)
                     sample_mask = sample_prob < self.ss_prob
@@ -1379,7 +1384,7 @@ class Scene4AttModel(CaptionModel):
                         it, 
                         p_fc_feats, 
                         p_att_feats, pp_att_feats, p_att_masks,
-                        scene_feats, 
+                        p_scene_feats, 
                         state)
 
             outputs_att[:, i] = output[0]
@@ -1397,6 +1402,10 @@ class Scene4AttModel(CaptionModel):
 
         # 'it' contains a word index
         xt = self.embed(it)
+        # print(type(xt), type(fc_feats), type(att_feats),
+        #         type(p_att_feats), type(state), type(att_masks))
+        # print(xt.dtype, fc_feats.dtype, att_feats.dtype,
+        #         p_att_feats.dtype, att_masks.dtype)
         output, state = self.core(
                 xt, fc_feats, att_feats, p_att_feats, scene_feats, state, att_masks)
         logprobs_att = F.log_softmax(self.logit(output[0]), dim=1)
@@ -1447,11 +1456,11 @@ class Scene4AttModel(CaptionModel):
 
                 output, state = self.core(
                         xt, 
-                        p_fc_feats, 
-                        p_att_feats, pp_att_feats, 
-                        scene_feats, 
+                        tmp_fc_feats, 
+                        tmp_att_feats, tmp_p_att_feats, 
+                        tmp_scene_feats, 
                         state, 
-                        p_att_masks)
+                        tmp_att_masks)
                 # logprobs_att = F.log_softmax(self.logit(output[0]), dim=1)
                 logprobs = F.log_softmax(self.logit(output[1]), dim=1)
 
@@ -1484,18 +1493,26 @@ class Scene4AttModel(CaptionModel):
         seq = fc_feats.new_zeros((batch_size, self.seq_length), dtype=torch.long)
         seqLogprobs = fc_feats.new_zeros(batch_size, self.seq_length)
         for t in range(self.seq_length + 1):
-            if t == 0: # input <bos>
+            if t == 0: 
+                # # input <bos>
+                # it = fc_feats.new_zeros(batch_size, dtype=torch.long)
                 xt = self.img_embed(fc_feats)
+                # print('in:', t, self.seq_length)
+                # print(type(xt), type(p_fc_feats), type(p_att_feats),
+                #         type(pp_att_feats), type(state), type(p_att_masks))
+                # print(xt.dtype, p_fc_feats.dtype, p_att_feats.dtype,
+                #         pp_att_feats.dtype, p_att_masks.dtype)
                 output, state = self.core(
                         xt, 
                         p_fc_feats, 
                         p_att_feats, pp_att_feats, 
-                        scene_feats, 
+                        p_scene_feats, 
                         state, 
                         p_att_masks)
                 # logprobs_att = F.log_softmax(self.logit(output[0]), dim=1)
                 logprobs = F.log_softmax(self.logit(output[1]), dim=1)
             else:
+                # print('out:', t, self.seq_length)
                 logprobs_list, state = self.get_logprobs_state(
                         it, 
                         p_fc_feats, 
@@ -1981,7 +1998,7 @@ class SceneTopDownCore(nn.Module):
 
         return output, state
 
-# for scene7 model
+# for scene7, scene8 model
 class Scene3TopDownCore(nn.Module):
     def __init__(self, opt, use_maxout=False):
         super(Scene3TopDownCore, self).__init__()
@@ -2300,6 +2317,15 @@ class VCAttention(nn.Module):
         # mapping h_size to attention_size
 
         # batch * rnn_size
+        # print(h.dtype)
+        # t1 = self.h2att_v(h)
+        # print(t1.dtype)
+        # t2 = torch.unsqueeze(t1, -1)
+        # print(t2.dtype, scene_feats.dtype)
+        # t3 = torch.bmm(scene_feats, t2)
+        # print(t3.dtype)
+        # t4 = self.h2att_u(t3.squeeze())
+        # print(t4.dtype)
         h_att = self.h2att_u(
                 torch.bmm(
                     scene_feats,
