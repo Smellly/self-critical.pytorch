@@ -1442,15 +1442,18 @@ class Scene4AttModel(CaptionModel):
 
             for t in range(1):
                 if t == 0: # input <bos>
-                    it = fc_feats.new_zeros([beam_size], dtype=torch.long)
+                    # it = fc_feats.new_zeros([beam_size], dtype=torch.long)
+                    xt = self.img_embed(fc_feats)
 
-                logprobs_list, state = self.get_logprobs_state(
-                        it, 
-                        tmp_fc_feats, 
-                        tmp_att_feats, tmp_p_att_feats, tmp_att_masks, 
-                        tmp_scene_feats,
-                        state)
-                logprobs = logprobs_list[-1]
+                output, state = self.core(
+                        xt, 
+                        p_fc_feats, 
+                        p_att_feats, pp_att_feats, 
+                        scene_feats, 
+                        state, 
+                        p_att_masks)
+                # logprobs_att = F.log_softmax(self.logit(output[0]), dim=1)
+                logprobs = F.log_softmax(self.logit(output[1]), dim=1)
 
             self.done_beams[k] = self.beam_search(
                     state, 
@@ -1482,15 +1485,24 @@ class Scene4AttModel(CaptionModel):
         seqLogprobs = fc_feats.new_zeros(batch_size, self.seq_length)
         for t in range(self.seq_length + 1):
             if t == 0: # input <bos>
-                it = fc_feats.new_zeros(batch_size, dtype=torch.long)
-
-            logprobs_list, state = self.get_logprobs_state(
-                    it, 
-                    p_fc_feats, 
-                    p_att_feats, pp_att_feats, p_att_masks, 
-                    p_scene_feats, 
-                    state)
-            logprobs = logprobs_list[-1]
+                xt = self.img_embed(fc_feats)
+                output, state = self.core(
+                        xt, 
+                        p_fc_feats, 
+                        p_att_feats, pp_att_feats, 
+                        scene_feats, 
+                        state, 
+                        p_att_masks)
+                # logprobs_att = F.log_softmax(self.logit(output[0]), dim=1)
+                logprobs = F.log_softmax(self.logit(output[1]), dim=1)
+            else:
+                logprobs_list, state = self.get_logprobs_state(
+                        it, 
+                        p_fc_feats, 
+                        p_att_feats, pp_att_feats, p_att_masks, 
+                        p_scene_feats, 
+                        state)
+                logprobs = logprobs_list[-1]
             
             if decoding_constraint and t > 0:
                 tmp = logprobs.new_zeros(logprobs.size())
@@ -2443,13 +2455,15 @@ class SceneTopDownModel(Scene2AttModel):
         self.num_layers = 2
         self.core = Scene2TopDownCore(opt)
 
+'''
+'''
 class SceneTopDownModel(Scene3AttModel):
     def __init__(self, opt):
         super(SceneTopDownModel, self).__init__(opt)
         self.num_layers = 2
         self.core = Scene3TopDownCore(opt)
-'''
 
+'''
 class SceneTopDownModel(Scene4AttModel):
     def __init__(self, opt):
         super(SceneTopDownModel, self).__init__(opt)
