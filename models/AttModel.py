@@ -1452,7 +1452,11 @@ class Scene4AttModel(CaptionModel):
             for t in range(1):
                 if t == 0: # input <bos>
                     # it = fc_feats.new_zeros([beam_size], dtype=torch.long)
-                    xt = self.img_embed(fc_feats)
+                    # print(fc_feats[k:k+1].shape)
+                    t_fc_feats = fc_feats[k:k+1].expand(beam_size, fc_feats[k:k+1].size(1))
+                    xt = self.img_embed(t_fc_feats)
+                    # xt = xt.expand(beam_size, xt.size(1))
+                    # print(xt.shape)
 
                 output, state = self.core(
                         xt, 
@@ -1461,7 +1465,6 @@ class Scene4AttModel(CaptionModel):
                         tmp_scene_feats, 
                         state, 
                         tmp_att_masks)
-                # logprobs_att = F.log_softmax(self.logit(output[0]), dim=1)
                 logprobs = F.log_softmax(self.logit(output[1]), dim=1)
 
             self.done_beams[k] = self.beam_search(
@@ -1497,11 +1500,6 @@ class Scene4AttModel(CaptionModel):
                 # # input <bos>
                 # it = fc_feats.new_zeros(batch_size, dtype=torch.long)
                 xt = self.img_embed(fc_feats)
-                # print('in:', t, self.seq_length)
-                # print(type(xt), type(p_fc_feats), type(p_att_feats),
-                #         type(pp_att_feats), type(state), type(p_att_masks))
-                # print(xt.dtype, p_fc_feats.dtype, p_att_feats.dtype,
-                #         pp_att_feats.dtype, p_att_masks.dtype)
                 output, state = self.core(
                         xt, 
                         p_fc_feats, 
@@ -1509,7 +1507,6 @@ class Scene4AttModel(CaptionModel):
                         p_scene_feats, 
                         state, 
                         p_att_masks)
-                # logprobs_att = F.log_softmax(self.logit(output[0]), dim=1)
                 logprobs = F.log_softmax(self.logit(output[1]), dim=1)
             else:
                 # print('out:', t, self.seq_length)
