@@ -976,7 +976,8 @@ class Scene3AttModel(CaptionModel):
             self.fc_embed = nn.Sequential(*(
                                     ((nn.BatchNorm1d(self.fc_feat_size),))+
                                     (
-                                        nn.Linear(self.fc_feat_size, self.rnn_size),
+                                        # nn.Linear(self.fc_feat_size, self.rnn_size),
+                                        nn.Linear(self.fc_feat_size, self.att_hid_size),
                                         nn.ReLU(),
                                         nn.Dropout(self.drop_prob_lm))+
                                     ((nn.BatchNorm1d(self.fc_feat_size),))))
@@ -2479,7 +2480,7 @@ class SceneTopDownModel(Scene2AttModel):
         self.core = Scene2TopDownCore(opt)
 
 '''
-'''
+# scene 7
 class SceneTopDownModel(Scene3AttModel):
     def __init__(self, opt):
         super(SceneTopDownModel, self).__init__(opt)
@@ -2487,11 +2488,13 @@ class SceneTopDownModel(Scene3AttModel):
         self.core = Scene3TopDownCore(opt)
 
 '''
+# scene 8
 class SceneTopDownModel(Scene4AttModel):
     def __init__(self, opt):
         super(SceneTopDownModel, self).__init__(opt)
         self.num_layers = 2
         self.core = Scene3TopDownCore(opt)
+'''
 
 class myTopDownModel(myAttModel):
     def __init__(self, opt):
