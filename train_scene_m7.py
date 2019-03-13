@@ -19,7 +19,7 @@ import models
 from dataloader_scene import *
 import eval_utils_scene as eval_utils
 import misc.utils as utils
-from misc.rewards import init_scorer, get_self_critical_reward
+from misc.rewards_scene import init_scorer, get_self_critical_reward
 
 try:
     import tensorboardX as tb
@@ -158,9 +158,11 @@ def train(opt):
             gen_result, sample_logprobs = dp_model(
                     fc_feats, 
                     att_feats, 
+                    scene_feats,
                     att_masks, 
                     opt={'sample_max':0}, 
                     mode='sample')
+            print(type(gen_result))
             reward = get_self_critical_reward(
                     dp_model, fc_feats, att_feats, att_masks, data, gen_result, opt)
             loss = rl_crit(
