@@ -9,16 +9,10 @@ from collections import OrderedDict
 import torch
 
 import sys
-# <<<<<<< HEAD
-sys.path.append("/home/smelly/projects/self-critical.pytorch/cider")
-sys.path.append("/home/smelly/projects/self-critical.pytorch/misc/cider/pyciderevalcap/ciderD")
+import os
+sys.path.append(os.path.__file__ + "/misc/cider/pyciderevalcap/ciderD")
 from ciderD import CiderD
-# =======
-# sys.path.append("cider")
-# from pyciderevalcap.ciderD.ciderD import CiderD
-# sys.path.append("coco-caption")
-sys.path.append("/home/smelly/projects/self-critical.pytorch/coco-caption/pycocoevalcap/bleu")
-# from pycocoevalcap.bleu.bleu import Bleu
+sys.path.append(os.path.__file__ + "/coco-caption/pycocoevalcap/bleu")
 from bleu import Bleu
 
 CiderD_scorer = None
@@ -68,13 +62,13 @@ def get_self_critical_reward(model, fc_feats, att_feats, scene_feats, att_masks,
     gts = {i: gts[i % batch_size // seq_per_img] for i in range(2 * batch_size)}
     if opt.cider_reward_weight > 0:
         _, cider_scores = CiderD_scorer.compute_score(gts, res_)
-        print('Cider scores:', _)
+        # print('Cider scores:', _)
     else:
         cider_scores = 0
     if opt.bleu_reward_weight > 0:
         _, bleu_scores = Bleu_scorer.compute_score(gts, res__)
         bleu_scores = np.array(bleu_scores[3])
-        print('Bleu scores:', _[3])
+        # print('Bleu scores:', _[3])
     else:
         bleu_scores = 0
     scores = opt.cider_reward_weight * cider_scores + opt.bleu_reward_weight * bleu_scores
