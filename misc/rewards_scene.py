@@ -17,8 +17,9 @@ from ciderD import CiderD
 # sys.path.append("cider")
 # from pyciderevalcap.ciderD.ciderD import CiderD
 # sys.path.append("coco-caption")
+sys.path.append("/home/smelly/projects/self-critical.pytorch/coco-caption/pycocoevalcap/bleu")
 # from pycocoevalcap.bleu.bleu import Bleu
-# >>>>>>> upstream/master
+from bleu import Bleu
 
 CiderD_scorer = None
 Bleu_scorer = None
@@ -52,6 +53,7 @@ def get_self_critical_reward(model, fc_feats, att_feats, scene_feats, att_masks,
     
     gen_result = gen_result.data.cpu().numpy()
     greedy_res = greedy_res.data.cpu().numpy()
+    # print(gen_result.shape, greedy_res.shape)
     for i in range(batch_size):
         res[i] = [array_to_str(gen_result[i])]
     for i in range(batch_size):

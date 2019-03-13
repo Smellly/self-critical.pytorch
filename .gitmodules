@@ -2,11 +2,10 @@
 	path = coco-caption
 	url = https://github.com/tylin/coco-caption.git
     ignore = dirty
-[submodule "cider"]
-	path = misc/cider
-	url = https://github.com/ruotianluo/cider.git
-    ignore = dirty
 [submodule "pytorch_compact_bilinear_pooling"]
 	path = pytorch_compact_bilinear_pooling
 	url = https://github.com/gdlg/pytorch_compact_bilinear_pooling.git
     ignore = dirty
+[submodule "misc/cider"]
+	path = misc/cider
+	url = https://github.com/ruotianluo/cider.git

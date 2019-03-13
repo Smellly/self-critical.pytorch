@@ -57,7 +57,8 @@ def train(opt):
             need_be_same=["caption_model", "rnn_type", "rnn_size", "num_layers"]
             for checkme in need_be_same:
                 assert vars(saved_model_opt)[checkme] == vars(opt)[checkme], \
-                        "Command line argument and saved model disagree on '%s' " % checkme
+                    "Command line argument %s and saved model %s disagree on '%s' \
+                    " % (vars(saved_model_opt)[checkme], vars(opt)[checkme], checkme)
 
         if os.path.isfile(os.path.join(opt.start_from, 'histories_'+opt.id+'.pkl')):
             with open(os.path.join(opt.start_from, 'histories_'+opt.id+'.pkl')) as f:
@@ -121,6 +122,7 @@ def train(opt):
                 init_scorer(opt.cached_tokens)
             else:
                 sc_flag = False
+            print('self_critical_flag:', sc_flag)
 
             update_lr_flag = False
                 
@@ -162,9 +164,8 @@ def train(opt):
                     att_masks, 
                     opt={'sample_max':0}, 
                     mode='sample')
-            print(type(gen_result))
             reward = get_self_critical_reward(
-                    dp_model, fc_feats, att_feats, att_masks, data, gen_result, opt)
+                    dp_model, fc_feats, att_feats, scene_feats, att_masks, data, gen_result, opt)
             loss = rl_crit(
                     sample_logprobs, 
                     gen_result.data, 
