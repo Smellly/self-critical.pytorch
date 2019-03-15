@@ -10,9 +10,9 @@ import torch
 
 import sys
 import os
-sys.path.append(os.path.__file__ + "/misc/cider/pyciderevalcap/ciderD")
+sys.path.append(sys.path[0] + "/misc/cider/pyciderevalcap/ciderD")
 from ciderD import CiderD
-sys.path.append(os.path.__file__ + "/coco-caption/pycocoevalcap/bleu")
+sys.path.append(sys.path[0] + "/coco-caption/pycocoevalcap/bleu")
 from bleu import Bleu
 
 CiderD_scorer = None

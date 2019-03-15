@@ -628,7 +628,7 @@ class SceneAttModel(CaptionModel):
 
         return seq, seqLogprobs
 
-# for scene4 scene5 scene6
+# for scene4 scene5 scene6 scene9
 class Scene2AttModel(CaptionModel):
     def __init__(self, opt):
         super(Scene2AttModel, self).__init__()
@@ -2028,6 +2028,46 @@ class Scene3TopDownCore(nn.Module):
 
         return [output_att, output_lang], state
 
+# for scene9
+class Scene4TopDownCore(nn.Module):
+    def __init__(self, opt, use_maxout=False):
+        super(Scene4TopDownCore, self).__init__()
+        self.drop_prob_lm = opt.drop_prob_lm
+        self.att_lstm = nn.LSTMCell(opt.input_encoding_size + opt.rnn_size, opt.rnn_size) # we, fc, h^2_t-1
+        self.lang_lstm = nn.LSTMCell(opt.rnn_size * 3, opt.rnn_size) # h^1_t, \hat v
+        self.attention = Attention(opt)
+        self.vcAttention = VCAttention(opt)
+        self.fuse = nn.Linear(opt.rnn_size*2, opt.rnn_size)
+
+    def forward(self, xt, fc_feats, att_feats, p_att_feats, scene_feats, state, att_masks=None):
+        prev_h = state[0][-1]
+
+        # att_lstm_input = self.layernorm(torch.cat([prev_h, fc_feats, xt], 1))
+        att_lstm_input = torch.cat([prev_h, xt], 1)
+        h_att, c_att = self.att_lstm(att_lstm_input, (state[0][0], state[1][0]))
+
+        att     = self.attention(   
+                        h_att, att_feats, p_att_feats, att_masks)
+        vc_att  = self.vcAttention( 
+                        h_att, fc_feats, scene_feats)
+
+        # lang_lstm_input = torch.cat([att, h_att, fc_feats], 1)
+        lang_lstm_input = torch.cat([h_att, att, vc_att], 1)
+        h_lang, c_lang = self.lang_lstm(lang_lstm_input, (state[0][1], state[1][1]))
+
+        output_att = F.dropout(h_att, self.drop_prob_lm, self.training)
+        output_lang = F.dropout(h_lang, self.drop_prob_lm, self.training)
+        state = (torch.stack([h_att, h_lang]), torch.stack([c_att, c_lang]))
+        # plus
+        # lambd = 0.7
+        # output = lambd * output_lang + (1-lambd) * output_att
+        # mul 
+        output = output_lang.mul(output_att)
+        # fc
+        output = self.fuse(torch.cat((output_att, output_lang), dim=1))
+
+        return output, state
+
 # for scene6 model
 class Scene2TopDownCore(nn.Module):
     def __init__(self, opt, use_maxout=False):
@@ -2332,7 +2372,6 @@ class VCAttention(nn.Module):
         # vc_att = self.vc2att(fc_feats)
 
         # batch * rnn_size
-        vc_att = self.vc2att(fc_feats)
         # print(h_att.shape)
         # print(fc_feats.shape)
         dot = h_att + fc_feats                                # batch * rnn_size
@@ -2344,7 +2383,11 @@ class VCAttention(nn.Module):
         # fc_feats_ = fc_feats.view(-1, self.rnn_size, fc_feats.size(-1)) # batch * fc_size * fc_feat_size
         # fc_res = torch.bmm(weight.unsqueeze(1), fc_feats).squeeze(1) # batch * fc_feat_size
 
+        # old vc attention for scene6,7,8,9
+        vc_att = self.vc2att(fc_feats)
         fc_res = vc_att.mul(weight)
+        # new vc attention for scene10
+        # fc_res = fc_feats.mul(weight)
 
         return fc_res
 
@@ -2472,20 +2515,24 @@ class TopDownModel(AttModel):
         self.num_layers = 2
         self.core = TopDownCore(opt)
 
-'''
+# scene6 scene9
 class SceneTopDownModel(Scene2AttModel):
     def __init__(self, opt):
         super(SceneTopDownModel, self).__init__(opt)
         self.num_layers = 2
-        self.core = Scene2TopDownCore(opt)
+        # scene6
+        # self.core = Scene2TopDownCore(opt)
+        # scene9
+        self.core = Scene4TopDownCore(opt)
 
 '''
-# scene 7
+# scene7 scene10
 class SceneTopDownModel(Scene3AttModel):
     def __init__(self, opt):
         super(SceneTopDownModel, self).__init__(opt)
         self.num_layers = 2
         self.core = Scene3TopDownCore(opt)
+'''
 
 '''
 # scene 8
