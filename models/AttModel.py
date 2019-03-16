@@ -2037,7 +2037,10 @@ class Scene4TopDownCore(nn.Module):
         self.lang_lstm = nn.LSTMCell(opt.rnn_size * 3, opt.rnn_size) # h^1_t, \hat v
         self.attention = Attention(opt)
         self.vcAttention = VCAttention(opt)
-        self.fuse = nn.Linear(opt.rnn_size*2, opt.rnn_size)
+        self.fuse = nn.Sequential(
+                    nn.Linear(opt.rnn_size*2, opt.rnn_size),
+                    nn.ReLU(),
+                    nn.Dropout(self.drop_prob_lm))
 
     def forward(self, xt, fc_feats, att_feats, p_att_feats, scene_feats, state, att_masks=None):
         prev_h = state[0][-1]
@@ -2062,7 +2065,7 @@ class Scene4TopDownCore(nn.Module):
         # lambd = 0.7
         # output = lambd * output_lang + (1-lambd) * output_att
         # mul 
-        output = output_lang.mul(output_att)
+        # output = output_lang.mul(output_att)
         # fc
         output = self.fuse(torch.cat((output_att, output_lang), dim=1))
 
