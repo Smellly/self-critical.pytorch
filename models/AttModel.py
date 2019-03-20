@@ -2013,8 +2013,11 @@ class Scene3TopDownCore(nn.Module):
         att_lstm_input = torch.cat([prev_h, xt], 1)
         h_att, c_att = self.att_lstm(att_lstm_input, (state[0][0], state[1][0]))
 
+        # att     = self.attention(   
+        #                 h_att, att_feats, p_att_feats, att_masks)
+        # for scene 7 both
         att     = self.attention(   
-                        h_att, att_feats, p_att_feats, att_masks)
+                        h_att, att_feats, p_att_feats, scene_feats, att_masks)
         vc_att  = self.vcAttention( 
                         h_att, fc_feats, scene_feats)
 
@@ -2298,6 +2301,7 @@ class DenseAttCore(nn.Module):
         return self.fusion2(torch.cat([h_0, h_1, h_2], 1)), [torch.cat(_, 0) for _ in zip(state_0, state_1, state_2)]
 
 # input: Image Region Features
+'''
 class Attention(nn.Module):
     def __init__(self, opt):
         super(Attention, self).__init__()
@@ -2332,6 +2336,48 @@ class Attention(nn.Module):
         att_res = torch.bmm(weight.unsqueeze(1), att_feats_).squeeze(1) # batch * att_feat_size
 
         return att_res
+'''
+# for both scene attention
+class Attention(nn.Module):
+    def __init__(self, opt):
+        super(Attention, self).__init__()
+        self.rnn_size = opt.rnn_size
+        self.att_hid_size = opt.att_hid_size
+        self.scene_feat_size = opt.scene_feat_size
+
+        self.h2att_u = nn.Linear(self.scene_feat_size, self.att_hid_size)
+        self.h2att_v = nn.Linear(self.rnn_size, self.scene_feat_size)
+        self.alpha_net = nn.Linear(self.att_hid_size, 1)
+
+    def forward(self, h, att_feats, p_att_feats, scene_feats, att_masks=None):
+        # The p_att_feats here is already projected
+        att_size = att_feats.numel() // att_feats.size(0) // att_feats.size(-1)
+        att = p_att_feats.view(-1, att_size, self.att_hid_size)
+        
+        # mapping h_size to attention_size
+        att_h = self.h2att_u(
+                torch.bmm(
+                    scene_feats,
+                    torch.unsqueeze(self.h2att_v(h), -1)).squeeze())
+        # h_att = self.h2att(h)
+        att_h = att_h.unsqueeze(1).expand_as(att)            # batch * att_size * att_hid_size
+
+        dot = att + att_h                                   # batch * att_size * att_hid_size
+        dot = torch.tanh(dot)                                # batch * att_size * att_hid_size
+        dot = dot.view(-1, self.att_hid_size)               # (batch * att_size) * att_hid_size
+        dot = self.alpha_net(dot)                           # (batch * att_size) * 1
+        dot = dot.view(-1, att_size)                        # batch * att_size
+        
+        weight = F.softmax(dot, dim=1)                             # batch * att_size
+
+        if att_masks is not None:
+            weight = weight * att_masks.view(-1, att_size).float()
+            weight = weight / weight.sum(1, keepdim=True) # normalize to 1
+
+        att_feats_ = att_feats.view(-1, att_size, att_feats.size(-1)) # batch * att_size * att_feat_size
+        att_res = torch.bmm(weight.unsqueeze(1), att_feats_).squeeze(1) # batch * att_feat_size
+
+        return att_res
 
 # input: Visual Concepts
 class VCAttention(nn.Module):
@@ -2340,9 +2386,8 @@ class VCAttention(nn.Module):
         self.rnn_size = opt.rnn_size
         self.att_hid_size = opt.att_hid_size
         self.scene_feat_size = opt.scene_feat_size
+        # ablation exp
         # self.h2att = nn.Linear(self.rnn_size, self.att_hid_size)
-        # self.vc2att = nn.Linear(self.rnn_size, self.att_hid_size)
-
         self.h2att_u = nn.Linear(self.scene_feat_size, self.att_hid_size)
         self.h2att_v = nn.Linear(self.rnn_size, self.scene_feat_size)
         self.vc2att = nn.Linear(self.att_hid_size, self.rnn_size)
@@ -2351,32 +2396,13 @@ class VCAttention(nn.Module):
     # fc_feats here actually is visual concepts
     def forward(self, h, fc_feats, scene_feats, att_masks=None):
         # The p_att_feats here is already projected
-        # h : batch * hid_size
-        # fc_feats: batch * rnn_size
-        # scene_feats : batch * scene_feat_size 
-        
         # mapping h_size to attention_size
-
-        # batch * rnn_size
-        # print(h.dtype)
-        # t1 = self.h2att_v(h)
-        # print(t1.dtype)
-        # t2 = torch.unsqueeze(t1, -1)
-        # print(t2.dtype, scene_feats.dtype)
-        # t3 = torch.bmm(scene_feats, t2)
-        # print(t3.dtype)
-        # t4 = self.h2att_u(t3.squeeze())
-        # print(t4.dtype)
         h_att = self.h2att_u(
                 torch.bmm(
                     scene_feats,
                     torch.unsqueeze(self.h2att_v(h), -1)).squeeze())
         # h_att = self.h2att(h)
-        # vc_att = self.vc2att(fc_feats)
 
-        # batch * rnn_size
-        # print(h_att.shape)
-        # print(fc_feats.shape)
         dot = h_att + fc_feats                                # batch * rnn_size
         dot = torch.tanh(dot)                               # batch * rnn_size
         dot = self.alpha_net(dot)                         # (batch * fc_size) * 1
@@ -2518,6 +2544,7 @@ class TopDownModel(AttModel):
         self.num_layers = 2
         self.core = TopDownCore(opt)
 
+'''
 # scene6 scene9
 class SceneTopDownModel(Scene2AttModel):
     def __init__(self, opt):
@@ -2535,7 +2562,6 @@ class SceneTopDownModel(Scene3AttModel):
         super(SceneTopDownModel, self).__init__(opt)
         self.num_layers = 2
         self.core = Scene3TopDownCore(opt)
-'''
 
 '''
 # scene 8
