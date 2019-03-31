@@ -1,5 +1,7 @@
 # pycfile
 *.pyc
+*.pkl
+*.txt
 
 # logfile
 log*
