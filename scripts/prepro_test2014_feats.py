@@ -112,8 +112,8 @@ def main(params):
     I = Image.open(
             os.path.join(
                 params['images_root'], 
-                img['filepath'], 
-                img['filename'])
+                params['images_path'], 
+                img['file_name'])
             ).convert('RGB')
     I = preprocess(I).cuda()
     with torch.no_grad():
@@ -123,10 +123,10 @@ def main(params):
                 params['visual_concepts'])
     # write to pkl
     np.save(
-            os.path.join(dir_fc, str(img['cocoid'])), 
+            os.path.join(dir_fc, str(img['id'])), 
             tmp_fc.data.cpu().float().numpy())
     np.savez_compressed(
-            os.path.join(dir_att, str(img['cocoid'])), 
+            os.path.join(dir_att, str(img['id'])), 
             feat=tmp_att.data.cpu().float().numpy())
 
     if i % 1000 == 0:
@@ -146,6 +146,7 @@ if __name__ == "__main__":
 
   # options
   parser.add_argument('--images_root', default='', help='root location in which images are stored, to be prepended to file_path in input json')
+  parser.add_argument('--images_path', default='test2014', help='root location in which images are stored, to be prepended to file_path in input json')
   parser.add_argument('--att_size', default=14, type=int, help='14x14 or 7x7')
   parser.add_argument('--model', default='resnet101', type=str, help='resnet101, resnet152')
   parser.add_argument('--model_root', default='./data/imagenet_weights', type=str, help='model root')
