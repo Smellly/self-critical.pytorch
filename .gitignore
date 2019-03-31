@@ -2,6 +2,9 @@
 *.pyc
 *.pkl
 *.txt
+*.zip
+*.npy
+*.swp
 
 # logfile
 log*

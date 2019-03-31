@@ -73,12 +73,17 @@ class DataLoader(data.Dataset):
             img = self.info['images'][ix]
             if img['split'] == 'train':
                 self.split_ix['train'].append(ix)
+            else:
+                self.split_ix['test'].append(ix)
+            '''
+            # Karpathy split
             elif img['split'] == 'val':
                 self.split_ix['val'].append(ix)
             elif img['split'] == 'test':
                 self.split_ix['test'].append(ix)
             elif opt.train_only == 0: # restval
                 self.split_ix['train'].append(ix)
+            '''
 
         print('assigned %d images to split train' %len(self.split_ix['train']))
         print('assigned %d images to split val' %len(self.split_ix['val']))
@@ -257,6 +262,9 @@ class DataLoader(data.Dataset):
                     os.path.join(
                         self.input_scene_dir, 
                         self.info['images'][ix]['file_path'].split('/')[-1].replace('.jpg', '.npy'))
+                        # 'COCO_val2014_000000356708.npy')
+                        # 'COCO_val2014_000000431197.npy')
+                        # 'COCO_val2014_000000216228.npy')
                     )
             return (fc_feat,
                     att_feat,

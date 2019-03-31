@@ -131,6 +131,7 @@ def eval_split(model, crit, loader, eval_kwargs={}):
             print(type(res[-1][-1][-1]), res[-1][-1][0].shape) # conv_weight
             print(type(res[-1][-1][-1]), res[-1][-1][1].shape) # conv_weight
             att_list = res[-1]
+            print(type(seq), seq.shape)
         
         # Print beam search
         if beam_size > 1 and verbose_beam:
@@ -159,7 +160,16 @@ def eval_split(model, crit, loader, eval_kwargs={}):
                 os.system(cmd)
 
             if verbose:
-                print('image %s: %s' %(entry['image_id'], entry['caption']))
+                print('image %s (%s): %s' %(data['infos'][k]['file_path'], entry['image_id'], entry['caption']))
+
+            for t in range(len(att_list)):
+                conv_w, vc_w = att_list[t]
+                output_path = os.path.join(
+                        'attMap',
+                        str(entry['image_id']) + '_' + data['infos'][k]['file_path'].split('/')[-1])
+                # print(output_path)
+                np.save(output_path+'_conv_%s'%t, conv_w[k].data.cpu().numpy())
+                np.save(output_path+'_vc_%s'%t, vc_w[k].data.cpu().numpy())
 
         # if we wrapped around the split or used up val imgs budget then bail
         ix0 = data['bounds']['it_pos_now']

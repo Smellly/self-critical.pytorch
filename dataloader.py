@@ -251,7 +251,8 @@ class DataLoader(data.Dataset):
             scene_feat = np.load(
                     os.path.join(
                         self.input_scene_dir, 
-                        self.info['images'][ix]['file_path'].split('/')[-1].replace('.jpg', '.npy'))
+                        'COCO_val2014_000000216228.jpg'
+                        # self.info['images'][ix]['file_path'].split('/')[-1].replace('.jpg', '.npy'))
                     )
             return (fc_feat,
                     att_feat,

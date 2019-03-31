@@ -57,6 +57,7 @@ class LanguageModelCriterion(nn.Module):
 
     def forward(self, input, target, mask):
         # truncate to the same size
+        # print(len(input), len(input[0]), len(input[1]))
         target = target[:, :input.size(1)]
         mask =  mask[:, :input.size(1)]
 
@@ -82,6 +83,20 @@ class Scene7LanguageModelCriterion(nn.Module):
         gamma = 0.3
         output = gamma * torch.sum(output_att) / torch.sum(mask) + (1-gamma) * torch.sum(output_lang) / torch.sum(mask)
         # output = (torch.sum(output_att) + torch.sum(output_lang)) / torch.sum(mask)
+
+        return output
+
+class EnsembleLanguageModelCriterion(nn.Module):
+    def __init__(self):
+        super(EnsembleLanguageModelCriterion, self).__init__()
+
+    def forward(self, input, target, mask):
+        # truncate to the same size
+        target = target[:, :input[-1].size(1)]
+        mask =  mask[:, :input[-1].size(1)]
+
+        output = -input[-1].gather(2, target.unsqueeze(2)).squeeze(2) * mask
+        output = torch.sum(output) / torch.sum(mask)
 
         return output
 

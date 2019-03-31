@@ -21,12 +21,10 @@ import torch
 # Input arguments and options
 parser = argparse.ArgumentParser()
 # Input paths
-parser.add_argument('--model', type=str, default='',
-                help='path to model to evaluate')
-parser.add_argument('--cnn_model', type=str,  default='resnet101',
-                help='vConcept101, resnet101, resnet152')
-parser.add_argument('--infos_path', type=str, default='',
-                help='path to infos to evaluate')
+parser.add_argument('--ids', nargs='+', required=True, help='id of the models to ensemble')
+# parser.add_argument('--models', nargs='+', required=True
+#                 help='path to model to evaluate')
+# parser.add_argument('--infos_paths', nargs='+', required=True, help='path to infos to evaluate')
 # Basic options
 parser.add_argument('--batch_size', type=int, default=0,
                 help='if > 0 then overrule, otherwise load from checkpoint.')
@@ -68,8 +66,6 @@ parser.add_argument('--input_att_dir', type=str, default='',
                 help='path to the h5file containing the preprocessed dataset')
 parser.add_argument('--input_box_dir', type=str, default='',
                 help='path to the h5file containing the preprocessed dataset')
-parser.add_argument('--input_scene_dir', type=str, default='data/cocotalk_fc',
-                help='path to the directory containing the preprocessed scene feats')
 parser.add_argument('--input_label_h5', type=str, default='',
                 help='path to the h5file containing the preprocessed dataset')
 parser.add_argument('--input_json', type=str, default='', 
@@ -78,21 +74,23 @@ parser.add_argument('--split', type=str, default='test',
                 help='if running on MSCOCO images, which split to use: val|test|train')
 parser.add_argument('--coco_json', type=str, default='', 
                 help='if nonempty then use this file in DataLoaderRaw (see docs there). Used only in MSCOCO test evaluation, where we have a specific json file of only test set images.')
+parser.add_argument('--seq_length', type=int, default=40, 
+                help='maximum sequence length during sampling')
 # misc
 parser.add_argument('--id', type=str, default='', 
                 help='an id identifying this run/job. used only if language_eval = 1 for appending to intermediate files')
-parser.add_argument('--verbose', type=int, default=0, 
-                help='if we need to print out all caption.')
-parser.add_argument('--verbose_beam', type=int, default=0, 
+parser.add_argument('--verbose_beam', type=int, default=1, 
                 help='if we need to print out all beam search beams.')
 parser.add_argument('--verbose_loss', type=int, default=0, 
-                help='if we need to calculate loss.')
+                help='If calculate loss using ground truth during evaluation')
 
 opt = parser.parse_args()
 
-# Load infos
-with open(opt.infos_path) as f:
-    infos = cPickle.load(f)
+model_infos = [cPickle.load(open('log_%s/infos_%s-best.pkl' %(id, id))) for id in opt.ids]
+model_paths = ['log_%s/model-best.pth' %(id) for id in opt.ids]
+
+# Load one infos
+infos = model_infos[0]
 
 # override and collect parameters
 if len(opt.input_fc_dir) == 0:
@@ -106,27 +104,36 @@ if opt.batch_size == 0:
     opt.batch_size = infos['opt'].batch_size
 if len(opt.id) == 0:
     opt.id = infos['opt'].id
-ignore = ["id", "batch_size", "beam_size", "start_from", "language_eval"]
-for k in vars(infos['opt']).keys():
-    if k not in ignore:
-        if k in vars(opt):
-            assert vars(opt)[k] == vars(infos['opt'])[k], \
-                    '%s [%s] option not consistent with [%s]'%(
-                        k, 
-                        vars(opt)[k],
-                        vars(infos['opt'])[k])
-            # pass
-        else:
-            vars(opt).update({k: vars(infos['opt'])[k]}) # copy over options from model
+
+vars(opt).update({k: vars(infos['opt'])[k] for k in vars(infos['opt']).keys() if k not in vars(opt)}) # copy over options from model
+
+
+opt.use_box = max([getattr(infos['opt'], 'use_box', 0) for infos in model_infos])
+assert max([getattr(infos['opt'], 'norm_att_feat', 0) for infos in model_infos]) == max([getattr(infos['opt'], 'norm_att_feat', 0) for infos in model_infos]), 'Not support different norm_att_feat'
+assert max([getattr(infos['opt'], 'norm_box_feat', 0) for infos in model_infos]) == max([getattr(infos['opt'], 'norm_box_feat', 0) for infos in model_infos]), 'Not support different norm_box_feat'
 
 vocab = infos['vocab'] # ix -> word mapping
 
 # Setup the model
-model = models.setup(opt)
-model.load_state_dict(torch.load(opt.model))
-model.cuda()
+from models.AttEnsemble import AttSceneEnsemble as AttEnsemble
+
+_models = []
+for i in range(len(model_infos)):
+    model_infos[i]['opt'].start_from = None
+    tmp = models.setup(model_infos[i]['opt'])
+    tmp.load_state_dict(torch.load(model_paths[i]))
+    tmp.cuda()
+    tmp.eval()
+    _models.append(tmp)
+for i, id in enumerate(opt.ids):
+    print("model %d : %s"%(i, id))
+assert len(_models) == len(opt.ids)
+
+model = AttEnsemble(_models)
+model.seq_length = opt.seq_length
 model.eval()
 # crit = utils.Scene7LanguageModelCriterion()
+# crit = utils.EnsembleLanguageModelCriterion()
 crit = utils.LanguageModelCriterion()
 
 # Create the Data Loader instance
@@ -144,10 +151,7 @@ loader.ix_to_word = infos['vocab']
 
 # Set sample options
 loss, split_predictions, lang_stats = eval_utils.eval_split(
-        model, 
-        crit, 
-        loader, 
-        vars(opt))
+        model, crit, loader, vars(opt))
 
 print('loss: ', loss)
 if lang_stats:

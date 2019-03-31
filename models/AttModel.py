@@ -730,6 +730,7 @@ class Scene3AttModel(CaptionModel):
         # embed scene feats into diag
         scene_feats = torch.diag_embed(torch.gt(scene_feats, 0)).float()
         # scene_feats = torch.diag_embed(scene_feats).float()
+        # scene_feats = torch.gt(scene_feats, 0).float()
 
         # Project the attention feats first to reduce memory and computation comsumptions.
         p_att_feats = self.ctx2att(att_feats)
@@ -792,15 +793,22 @@ class Scene3AttModel(CaptionModel):
                 xt, 
                 fc_feats, att_feats, p_att_feats, scene_feats, 
                 state,
-                att_masks, 
-                viz)
+                att_masks=att_masks, 
+                viz=viz)
 
         logprobs_att = F.log_softmax(self.logit(output[0]), dim=1)
         logprobs_lang = F.log_softmax(self.logit(output[1]), dim=1)
+        # l_att = F.softmax(self.logit(output[0]), dim=1)
+        # l_lang = F.softmax(self.logit(output[1]), dim=1)
+        # logprobs = l_att * 0.3 + l_lang * 0.7
+        # logprobs = torch.stack([F.softmax(self.logit(output[i]), dim=1) 
+        #         for i in range(len(output))], 2).mean(2).log()
+        # print(logprobs_att.shape, logprobs_lang.shape, logprobs.shape)
         if viz:
             return [logprobs_att, logprobs_lang], state, weight
         else:
             return [logprobs_att, logprobs_lang], state
+            # return [logprobs_att, logprobs], state
 
     def _sample_beam(self, fc_feats, att_feats, scene_feats, att_masks=None, opt={}):
         beam_size = opt.get('beam_size', 10)
@@ -863,7 +871,6 @@ class Scene3AttModel(CaptionModel):
         return seq.transpose(0, 1), seqLogprobs.transpose(0, 1)
 
     def _sample(self, fc_feats, att_feats, scene_feats, att_masks=None, opt={}):
-        print('sample')
         sample_max = opt.get('sample_max', 1)
         beam_size = opt.get('beam_size', 1)
         temperature = opt.get('temperature', 1.0)
@@ -992,6 +999,7 @@ class Scene3AttModel(CaptionModel):
 
         return seq, seqLogprobs, weight_list
 
+# for log_vc_0068_scene7_leg3bu1ln_adam_rl
 # for scene7, scene8 model
 class Scene3TopDownCore(nn.Module):
     def __init__(self, opt, use_maxout=False):
@@ -1004,15 +1012,6 @@ class Scene3TopDownCore(nn.Module):
         self.att_hid_size = opt.att_hid_size
         self.attention = Attention(opt)
         self.vcAttention = VCAttention(opt)
-        # for vc_0068_scene7_leg3ln3_share_adam and fp
-        # self.h2att_u = nn.Sequential(*(
-        #     ((nn.LayerNorm(self.scene_feat_size),) )+
-        #     (
-        #         nn.Linear(self.scene_feat_size , self.att_hid_size ),)+
-        #     ((nn.LayerNorm(self.att_hid_size),)) ))
-        # for vc_0068_scene7_leg3ln2_share2_adam    
-        self.h2att_u = nn.Linear(self.scene_feat_size, self.att_hid_size)
-        self.h2att_v = nn.Linear(self.rnn_size, self.scene_feat_size)
 
     def forward(self, 
             xt, fc_feats, att_feats, p_att_feats, scene_feats, 
@@ -1022,30 +1021,78 @@ class Scene3TopDownCore(nn.Module):
         # att_lstm_input = self.layernorm(torch.cat([prev_h, fc_feats, xt], 1))
         att_lstm_input = torch.cat([prev_h, xt], 1)
         h_att, c_att = self.att_lstm(att_lstm_input, (state[0][0], state[1][0]))
-        att_h = self.h2att_u(
-                torch.bmm(
-                    scene_feats,
-                    torch.unsqueeze(self.h2att_v(h_att), -1)).squeeze())
 
         if viz:
             att, conv_weight = self.attention(   
-                            att_h, att_feats, p_att_feats, scene_feats,
+                            h_att, att_feats, p_att_feats,
                             att_masks=att_masks,
                             viz=viz)
-            # print('core:', conv_weight.shape)
             vc_att, vc_weight  = self.vcAttention( 
-                            att_h, fc_feats, scene_feats, att_masks, viz)
+                            h_att, fc_feats, scene_feats, 
+                            att_masks=att_masks,
+                            viz=viz)
         else:
-            # for scene 7 both
-            # att     = self.attention(   
-            #                 h_att, att_feats, p_att_feats, scene_feats, att_masks)
             att = self.attention(   
-                            att_h, att_feats, p_att_feats, att_masks)
+                            h_att, att_feats, p_att_feats, att_masks)
             vc_att = self.vcAttention( 
-                            att_h, fc_feats, scene_feats)
+                            h_att, fc_feats, scene_feats)
 
         # lang_lstm_input = torch.cat([att, h_att, fc_feats], 1)
         lang_lstm_input = torch.cat([h_att, att, vc_att], 1)
+        h_lang, c_lang = self.lang_lstm(lang_lstm_input, (state[0][1], state[1][1]))
+
+        output_att = F.dropout(h_att, self.drop_prob_lm, self.training)
+        output_lang = F.dropout(h_lang, self.drop_prob_lm, self.training)
+        state = (torch.stack([h_att, h_lang]), torch.stack([c_att, c_lang]))
+
+        if viz:
+            return [output_att, output_lang], state, [conv_weight, vc_weight]
+        else:
+            return [output_att, output_lang], state, None
+
+'''
+# for scene 10
+class Scene3TopDownCore(nn.Module):
+    def __init__(self, opt, use_maxout=False):
+        super(Scene3TopDownCore, self).__init__()
+        self.drop_prob_lm = opt.drop_prob_lm
+        self.att_lstm = nn.LSTMCell(opt.input_encoding_size + opt.rnn_size * 2, opt.rnn_size) # we, fc, h^2_t-1
+        self.lang_lstm = nn.LSTMCell(opt.rnn_size * 2, opt.rnn_size) # h^1_t, \hat v
+        self.scene_feat_size = opt.scene_feat_size
+        self.rnn_size = opt.rnn_size
+        self.att_hid_size = opt.att_hid_size
+        self.attention = Attention(opt)
+        self.vcAttention = VCAttention(opt)
+
+    def forward(self, 
+            xt, fc_feats, att_feats, p_att_feats, scene_feats, 
+            state, att_masks=None, viz=False):
+        prev_h = state[0][-1]
+
+        # att_lstm_input = self.layernorm(torch.cat([prev_h, fc_feats, xt], 1))
+        if viz:
+            vc_att, vc_weight  = self.vcAttention( 
+                            prev_h, fc_feats, scene_feats, 
+                            att_masks=att_masks,
+                            viz=viz)
+        else:
+            vc_att = self.vcAttention( 
+                            prev_h, fc_feats, scene_feats)
+
+        att_lstm_input = torch.cat([prev_h, xt, vc_att], 1)
+        h_att, c_att = self.att_lstm(att_lstm_input, (state[0][0], state[1][0]))
+
+        if viz:
+            att, conv_weight = self.attention(   
+                            h_att, att_feats, p_att_feats,
+                            att_masks=att_masks,
+                            viz=viz)
+        else:
+            att = self.attention(   
+                            h_att, att_feats, p_att_feats, att_masks)
+
+        # lang_lstm_input = torch.cat([att, h_att, fc_feats], 1)
+        lang_lstm_input = torch.cat([h_att, att], 1)
         h_lang, c_lang = self.lang_lstm(lang_lstm_input, (state[0][1], state[1][1]))
 
         output_att = F.dropout(h_att, self.drop_prob_lm, self.training)
@@ -1068,7 +1115,7 @@ class Attention(nn.Module):
         self.h2att = nn.Linear(self.rnn_size, self.att_hid_size)
         self.alpha_net = nn.Linear(self.att_hid_size, 1)
 
-    def forward(self, h, att_feats, p_att_feats, att_masks=None):
+    def forward(self, h, att_feats, p_att_feats, att_masks=None, viz=False):
         # The p_att_feats here is already projected
         att_size = att_feats.numel() // att_feats.size(0) // att_feats.size(-1)
         att = p_att_feats.view(-1, att_size, self.att_hid_size)
@@ -1092,7 +1139,47 @@ class Attention(nn.Module):
         att_feats_ = att_feats.view(-1, att_size, att_feats.size(-1)) # batch * att_size * att_feat_size
         att_res = torch.bmm(weight.unsqueeze(1), att_feats_).squeeze(1) # batch * att_feat_size
 
+        if viz:
+            return att_res, weight
         return att_res
+
+# input: Visual Concepts
+class VCAttention(nn.Module):
+    def __init__(self, opt):
+        super(VCAttention, self).__init__()
+        self.rnn_size = opt.rnn_size
+        self.att_hid_size = opt.att_hid_size
+        self.scene_feat_size = opt.scene_feat_size
+        # ablation exp
+        # self.h2att = nn.Linear(self.rnn_size, self.att_hid_size)
+        self.h2att_u = nn.Linear(self.scene_feat_size, self.att_hid_size)
+        self.h2att_v = nn.Linear(self.rnn_size, self.scene_feat_size)
+        self.vc2att = nn.Linear(self.att_hid_size, self.rnn_size)
+        self.alpha_net = nn.Linear(self.att_hid_size, self.rnn_size)
+
+    # fc_feats here actually is visual concepts
+    def forward(self, h, fc_feats, scene_feats, att_masks=None, viz=False):
+        # The p_att_feats here is already projected
+        # mapping h_size to attention_size
+        h_att = self.h2att_u(
+                torch.bmm(
+                    scene_feats,
+                    torch.unsqueeze(self.h2att_v(h), -1)).squeeze())
+        # h_att = self.h2att(h)
+        dot = h_att + fc_feats                                # batch * rnn_size
+        dot = torch.tanh(dot)                               # batch * rnn_size
+        dot = self.alpha_net(dot)                         # (batch * fc_size) * 1
+
+        weight = F.softmax(dot, dim=1)                      # batch * rnn_size
+
+
+        # old vc attention for scene6,7,8,9
+        vc_att = self.vc2att(fc_feats)
+        fc_res = vc_att.mul(weight)
+        # new vc attention for scene10
+        if viz:
+            return fc_res, weight
+        return fc_res
 '''
 # for both and share scene attention
 class Attention(nn.Module):
@@ -1177,32 +1264,65 @@ class VCAttention(nn.Module):
             return fc_res, weight
         return fc_res
 
-'''
-# for sharing scene feat
+# for scene7, scene8 model
 class Scene3TopDownCore(nn.Module):
     def __init__(self, opt, use_maxout=False):
         super(Scene3TopDownCore, self).__init__()
         self.drop_prob_lm = opt.drop_prob_lm
-        self.att_lstm = nn.LSTMCell(opt.input_encoding_size + opt.rnn_size, opt.rnn_size) # we, fc, h^2_t-1
+        self.att_lstm = nn.LSTMCell(opt.input_encoding_size + opt.rnn_size +\
+                opt.scene_feat_size, opt.rnn_size) # we, fc, h^2_t-1
         self.lang_lstm = nn.LSTMCell(opt.rnn_size * 3, opt.rnn_size) # h^1_t, \hat v
+        self.scene_feat_size = opt.scene_feat_size
+        self.rnn_size = opt.rnn_size
+        self.att_hid_size = opt.att_hid_size
         self.attention = Attention(opt)
         self.vcAttention = VCAttention(opt)
-        self.h2att_u = nn.
+        # for vc_0068_scene7_leg3ln3_share_adam and fp
+        # self.h2att_u = nn.Sequential(*(
+        #     ((nn.LayerNorm(self.scene_feat_size),) )+
+        #     (
+        #         nn.Linear(self.scene_feat_size , self.att_hid_size ),)+
+        #     ((nn.LayerNorm(self.att_hid_size),)) ))
+        # for vc_0068_scene7_leg3ln2_share2_adam    
+        # self.scene_factor = self.att_hid_size
+        # self.h2att_u = nn.Linear(self.scene_factor, self.att_hid_size)
+        # self.h2att_v = nn.Linear(self.rnn_size, self.scene_factor)
+        self.h2att = nn.Linear(self.rnn_size, self.att_hid_size)
+        # self.s2att = nn.Linear(self.scene_feat_size, self.scene_factor)
 
-    def forward(self, xt, fc_feats, att_feats, p_att_feats, scene_feats, state, att_masks=None):
+    def forward(self, 
+            xt, fc_feats, att_feats, p_att_feats, scene_feats, 
+            state, att_masks=None, viz=False):
         prev_h = state[0][-1]
-
-        # att_lstm_input = self.layernorm(torch.cat([prev_h, fc_feats, xt], 1))
-        att_lstm_input = torch.cat([prev_h, xt], 1)
+        
+        att_lstm_input = torch.cat([prev_h, xt, scene_feats], 1)
+        # att_lstm_input = torch.cat([prev_h, xt], 1)
         h_att, c_att = self.att_lstm(att_lstm_input, (state[0][0], state[1][0]))
+        # vc_h = self.h2att_u(
+        #         torch.bmm(
+        #             scene_feats,
+        #             torch.unsqueeze(self.h2att_v(h_att), -1)).squeeze())
+        # no scene
+        # att_h = self.h2att_u(self.h2att_v(h_att))
+        # conv_h = self.h2att(h_att)
+        att_h = self.h2att(h_att)
 
-        att     = self.attention(   
-                        h_att, att_feats, p_att_feats, att_masks)
-        # for scene 7 both
-        # att     = self.attention(   
-        #                 h_att, att_feats, p_att_feats, scene_feats, att_masks)
-        vc_att  = self.vcAttention( 
-                        h_att, fc_feats, scene_feats)
+        if viz:
+            att, conv_weight = self.attention(   
+                            att_h, att_feats, p_att_feats, scene_feats,
+                            att_masks=att_masks,
+                            viz=viz)
+            # print('core:', conv_weight.shape)
+            vc_att, vc_weight  = self.vcAttention( 
+                            att_h, fc_feats, scene_feats, att_masks, viz)
+        else:
+            # for scene 7 both
+            # att     = self.attention(   
+            #                 h_att, att_feats, p_att_feats, scene_feats, att_masks)
+            att = self.attention(   
+                            att_h, att_feats, p_att_feats, att_masks)
+            vc_att = self.vcAttention( 
+                            att_h, fc_feats, scene_feats)
 
         # lang_lstm_input = torch.cat([att, h_att, fc_feats], 1)
         lang_lstm_input = torch.cat([h_att, att, vc_att], 1)
@@ -1212,7 +1332,10 @@ class Scene3TopDownCore(nn.Module):
         output_lang = F.dropout(h_lang, self.drop_prob_lm, self.training)
         state = (torch.stack([h_att, h_lang]), torch.stack([c_att, c_lang]))
 
-        return [output_att, output_lang], state
+        if viz:
+            return [output_att, output_lang], state, [conv_weight, vc_weight]
+        else:
+            return [output_att, output_lang], state, None
 '''
 
 # for scene8
