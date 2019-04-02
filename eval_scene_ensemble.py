@@ -11,7 +11,7 @@ from six.moves import cPickle
 
 import opts
 import models
-from dataloader_scene import *
+from dataloader_scene_ensemble import *
 from dataloaderraw import *
 import eval_utils_scene as eval_utils
 import argparse
@@ -26,6 +26,8 @@ parser.add_argument('--ids', nargs='+', required=True, help='id of the models to
 #                 help='path to model to evaluate')
 # parser.add_argument('--infos_paths', nargs='+', required=True, help='path to infos to evaluate')
 # Basic options
+parser.add_argument('--fc_feat_size', type=int, default=4267,
+                help='')
 parser.add_argument('--batch_size', type=int, default=0,
                 help='if > 0 then overrule, otherwise load from checkpoint.')
 parser.add_argument('--num_images', type=int, default=-1,
@@ -65,6 +67,8 @@ parser.add_argument('--input_fc_dir', type=str, default='',
 parser.add_argument('--input_att_dir', type=str, default='',
                 help='path to the h5file containing the preprocessed dataset')
 parser.add_argument('--input_box_dir', type=str, default='',
+                help='path to the h5file containing the preprocessed dataset')
+parser.add_argument('--input_scene_dir', type=str, default='',
                 help='path to the h5file containing the preprocessed dataset')
 parser.add_argument('--input_label_h5', type=str, default='',
                 help='path to the h5file containing the preprocessed dataset')

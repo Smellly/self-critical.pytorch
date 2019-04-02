@@ -33,8 +33,10 @@ def language_eval(dataset, preds, model_id, split):
 
     # filter results to only those in MSCOCO validation set (will be about a third)
     preds_filt = [p for p in preds if p['image_id'] in valids]
+    preds_filt = [p for p in preds]
     print('using %d/%d predictions' % (len(preds_filt), len(preds)))
     json.dump(preds_filt, open(cache_path, 'w')) # serialize to temporary json file. Sigh, COCO API...
+    print('save cache json to %s'%cache_path)
 
     cocoRes = coco.loadRes(cache_path)
     cocoEval = COCOEvalCap(coco, cocoRes)
@@ -166,7 +168,7 @@ def eval_split(model, crit, loader, eval_kwargs={}):
         if data['bounds']['wrapped']:
             break
         if num_images >= 0 and n >= num_images:
-            print("break")
+            print("Break. %d and %d."%(num_images, n))
             break
 
     lang_stats = None

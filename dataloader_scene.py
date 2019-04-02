@@ -44,6 +44,8 @@ class DataLoader(data.Dataset):
         print('DataLoader loading json file: ', opt.input_json)
         self.info = json.load(open(self.opt.input_json))
         self.ix_to_word = self.info['ix_to_word']
+        # for test2014
+        # self.info = json.load(open("data/image_info_test2014.json"))
         self.vocab_size = len(self.ix_to_word)
         print('vocab size is ', self.vocab_size)
         
@@ -71,19 +73,15 @@ class DataLoader(data.Dataset):
         self.split_ix = {'train': [], 'val': [], 'test': []}
         for ix in range(len(self.info['images'])):
             img = self.info['images'][ix]
+            # Karpathy split
             if img['split'] == 'train':
                 self.split_ix['train'].append(ix)
-            else:
-                self.split_ix['test'].append(ix)
-            '''
-            # Karpathy split
             elif img['split'] == 'val':
                 self.split_ix['val'].append(ix)
             elif img['split'] == 'test':
                 self.split_ix['test'].append(ix)
             elif opt.train_only == 0: # restval
                 self.split_ix['train'].append(ix)
-            '''
 
         print('assigned %d images to split train' %len(self.split_ix['train']))
         print('assigned %d images to split val' %len(self.split_ix['val']))
