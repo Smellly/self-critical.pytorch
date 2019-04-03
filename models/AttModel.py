@@ -725,7 +725,7 @@ class Scene3AttModel(CaptionModel):
         att_feats, att_masks = self.clip_att(att_feats, att_masks)
 
         # embed fc and att feats
-        fc_feats = self.fc_embed(fc_feats)
+        fc_feats = self.fc_embed(fc_feats.float())
         att_feats = pack_wrapper(self.att_embed, att_feats, att_masks)
         # embed scene feats into diag
         scene_feats = torch.diag_embed(torch.gt(scene_feats, 0)).float()
@@ -1103,6 +1103,7 @@ class Scene3TopDownCore(nn.Module):
             return [output_att, output_lang], state, [conv_weight, vc_weight]
         else:
             return [output_att, output_lang], state, None
+'''
 
 '''
 # input: Image Region Features
@@ -1181,6 +1182,7 @@ class VCAttention(nn.Module):
             return fc_res, weight
         return fc_res
 '''
+
 # for both and share scene attention
 class Attention(nn.Module):
     def __init__(self, opt):
@@ -1191,6 +1193,7 @@ class Attention(nn.Module):
 
         # self.h2att_u = nn.Linear(self.scene_feat_size, self.att_hid_size)
         # self.h2att_v = nn.Linear(self.rnn_size, self.scene_feat_size)
+        self.h2att = nn.Linear(self.rnn_size, self.att_hid_size)
         self.alpha_net = nn.Linear(self.att_hid_size, 1)
 
     def forward(self, att_h, att_feats, p_att_feats, scene_feats,
@@ -1204,7 +1207,7 @@ class Attention(nn.Module):
         #         torch.bmm(
         #             scene_feats,
         #             torch.unsqueeze(self.h2att_v(h), -1)).squeeze())
-        # h_att = self.h2att(h)
+        att_h = self.h2att(att_h)
         att_h = att_h.unsqueeze(1).expand_as(att)            # batch * att_size * att_hid_size
 
         dot = att + att_h                                   # batch * att_size * att_hid_size
@@ -1235,8 +1238,8 @@ class VCAttention(nn.Module):
         self.scene_feat_size = opt.scene_feat_size
         # ablation exp
         # self.h2att = nn.Linear(self.rnn_size, self.att_hid_size)
-        # self.h2att_u = nn.Linear(self.scene_feat_size, self.att_hid_size)
-        # self.h2att_v = nn.Linear(self.rnn_size, self.scene_feat_size)
+        self.h2att_u = nn.Linear(self.scene_feat_size, self.att_hid_size)
+        self.h2att_v = nn.Linear(self.rnn_size, self.scene_feat_size)
         self.vc2att = nn.Linear(self.att_hid_size, self.rnn_size)
         self.alpha_net = nn.Linear(self.att_hid_size, self.rnn_size)
 
@@ -1248,7 +1251,7 @@ class VCAttention(nn.Module):
         #         torch.bmm(
         #             scene_feats,
         #             torch.unsqueeze(self.h2att_v(h), -1)).squeeze())
-        # h_att = self.h2att(h)
+        h_att = self.h2att_u(self.h2att_v(h_att))
         dot = h_att + fc_feats                                # batch * rnn_size
         dot = torch.tanh(dot)                               # batch * rnn_size
         dot = self.alpha_net(dot)                         # (batch * fc_size) * 1
@@ -1264,6 +1267,7 @@ class VCAttention(nn.Module):
             return fc_res, weight
         return fc_res
 
+'''
 # for scene7, scene8 model
 class Scene3TopDownCore(nn.Module):
     def __init__(self, opt, use_maxout=False):

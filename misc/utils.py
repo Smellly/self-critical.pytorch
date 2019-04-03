@@ -72,9 +72,10 @@ class Scene7LanguageModelCriterion(nn.Module):
 
     def forward(self, input, target, mask):
         # truncate to the same size
-        mask =  mask[:, :input[0].size(1)]
+        mask =  mask[:, :input[0].size(1)].double()
 
         target_att = target[:, :input[0].size(1)]
+        # print(input[0].dtype, target_att.dtype, mask.dtype)
         output_att = -input[0].gather(2, target.unsqueeze(2)).squeeze(2) * mask
 
         target_lang = target[:, :input[1].size(1)]
